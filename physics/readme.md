@@ -1,6 +1,6 @@
-<h1> Physics Models for Sim-to-Real Transfer\\in Competitive Robotic Table Tennis </h1>
+<h1> Physics Models for Sim-to-Real Transfer\\in Professional-Level Robot Table Tennis </h1>
 
-This repositry contains the code for the paper "Data-Driven Event-Based Vision and Dataset for Robotic Table Tennis Rallies".
+This repositry contains the code for the paper "Physics Models for Sim-to-Real Transfer in Professional-Level Robot Table Tennis".
 
 
 ## Project page
@@ -11,8 +11,8 @@ available on [arxiv.org](https://arxiv.org/abs/).
 
 ```bibtex
 @misc{conti2026,
-      title={Physics Models for Sim-to-Real Transfer\\in Competitive Robotic Table Tennis},
-      author={Christian Conti , Bilan Yang , Alexander Sigrist , Lorenzo Miele, Yamen Saraiji , Peter D¨urr , Naoya Takahashi},
+      title={Physics Models for Sim-to-Real Transfer\\in Professional-Level Robot Table Tennis},
+      author={Christian Conti, Bilan Yang, Alexander Sigrist, Lorenzo Miele, Yamen Saraiji, Peter D¨urr, Naoya Takahashi},
       year={2026},
       eprint={},
       archivePrefix={arXiv},
