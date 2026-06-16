@@ -1,0 +1,125 @@
+# type: ignore
+# pylint: skip-file
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2024-2026, Sony AI Inc.
+general:
+
+  # Path Management
+  dataset_path: ${hydra:runtime.cwd}/residual_rcm/data/refined_contacts_FK_train_processed.csv
+  figures_path: ${hydra:runtime.cwd}/residual_rcm/data/figures/
+
+
+### Hyperparameters ###
+neural_network:
+  name: Residual outputs std
+  epochs: 500
+  learning_rate: 0.0015
+  batch_size: 16
+  train_perc: 0.8
+  val_perc: 0.1
+  test_perc: 0.1
+  input_config:
+    bv:                
+      input_dim: 3 #  ball relative velocity (racket frame)
+      layer_dim: 3 # 8
+    bs:
+      input_dim: 3 # ball spin (racket frame)
+      layer_dim: 3 # 8
+    dist:
+      input_dim: 2 # dyz (racket frame)
+      layer_dim: 2
+    bp:
+      input_dim: 3 # ball position (global)
+      layer_dim: 3
+    rv:
+      input_dim: 3 # racket velocity (racket frame)
+      layer_dim: 8
+    grv:
+      input_dim: 3 # racket velocity (global frame)
+      layer_dim: 3
+    grs:
+      input_dim: 3 # racket spin (global frame)
+      layer_dim: 3
+    gbv:
+      input_dim: 3 # ball velocity (global frame)
+      layer_dim: 3
+    gbs:
+      input_dim: 3 # ball spin (global frame)
+      layer_dim: 3
+    gdist:
+      input_dim: 3 # dyz (global frame)
+      layer_dim: 3
+    gwrx:
+      input_dim: 3 # dyz (global frame)
+      layer_dim: 3
+    rs:
+      input_dim: 3 # racket spin (racket frame)
+      layer_dim: 8
+    rp:
+      input_dim: 3 # racket position (global)
+      layer_dim: 8
+    rq:
+      input_dim: 4 # racket frame in quaternions  (global)
+      layer_dim: 4
+  input_types:
+  - bv
+  - bs
+  - dist
+  # - gdist
+  # - gbs
+  # - gbv
+  # - grv
+  # - grs
+  # - rq
+  # - gwrx
+  # - bp
+  # - rv
+  # - rs
+  # - rq
+
+  # - bv_x
+  # - bv_y
+  # - bs_z
+  # - dist
+  # - bp_x
+  # - bp_y
+  # - rs_z
+  # - rq_x
+  
+  output_dim: 3 # there are two branches one for velocity and one for spin
+
+  hidden_dims:
+  - 64 
+  - 64
+  - 32
+  vel_branch_hidden_dims:
+  - 32
+  spin_branch_hidden_dims:
+  - 32
+  other_branch_hidden_dims:
+  - 32
+  conf_head_hidden_dims:
+  - 32
+
+  dropout_rate: 0.2
+
+  # Early Stopping settings
+  early_stopping_patience: 50
+
+  # scaler settings:
+  #   - min max scaler = 1
+  #   - standard scaler = 2
+  #   - robust scaler = 3
+  #   - quantile transformer (uniform) = 4
+  #   - quantile transformer (normal) = 5
+  scaler_type: 1
+
+  # Wheter or not applying the Analytical Nakashima model as input to the model (velocity and spin)
+  residual_model_bool: True # False
+
+  nakashima_type: tangential_COR # tangential_COR, default
+
+# Path management is handled above
+  dataset_path: ${general.dataset_path}
+
+  model_name: proposed_model
