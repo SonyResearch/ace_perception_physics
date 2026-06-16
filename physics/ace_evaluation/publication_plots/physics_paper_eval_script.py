@@ -600,6 +600,11 @@ RCM_POLYFIT_FM = FieldMapping(
     "ground_truth_200/racket_contacts/simulated_trajectories_rcm_polyfit",
     None,
 )
+ONNX_0426_FM = FieldMapping(
+    "Dürr et al. (RCM + Aero)",
+    "ground_truth_200/racket_contacts/simulated_trajectories_onnx_0426",
+    None,
+)
 # Aerodynamics comparisons
 AERO_0226_FM = FieldMapping(
     "Aero 0226",
@@ -609,6 +614,11 @@ AERO_0226_FM = FieldMapping(
 AERO_NAKASHIMA_FM = FieldMapping(
     "Aero Nakashima",
     "ground_truth_200/aerodynamics/pos_nakashima",
+    "ground_truth_200/aerodynamics/t",
+)
+AERO_0426_FM = FieldMapping(
+    "Aero 0426 (Dürr et al.)",
+    "ground_truth_200/aerodynamics/pos_0426",
     "ground_truth_200/aerodynamics/t",
 )
 AERO_OPT_FM = FieldMapping(
@@ -1026,10 +1036,12 @@ def main():
     else:
         # Single field mapping
         # fm = NAKASHIMA
-        fm = ONNX_ALEX_FM
+        # fm = ONNX_ALEX_FM
         ## fm = ONNX_RCM_FM
         ## fm = RCM_POLYFIT_FM
+        fm = ONNX_0426_FM
         # fm = AERO_0226_FM
+        # fm = AERO_0426_FM
         # fm = AERO_NAKASHIMA_FM
         # fm = AERO_OPT_FM
 

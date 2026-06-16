@@ -311,6 +311,7 @@ class RacketContactEvent(Event):
     simulated_trajectory_nakashima_refined: Optional[Dict] = None
     simulated_trajectory_cpp_no_residual_refined: Optional[Dict] = None
     simulated_trajectory_latest: Optional[Dict] = None
+    simulated_trajectory_onnx_0426: Optional[Dict] = None
 
 
 @dataclass
@@ -1272,6 +1273,10 @@ class MatchCollection:
                                 (
                                     "simulated_trajectory_latest",
                                     "simulated_trajectories_latest",
+                                ),
+                                (
+                                    "simulated_trajectory_onnx_0426",
+                                    "simulated_trajectories_onnx_0426",
                                 ),
                             ]:
                                 traj_path = f"{grp_path}/{grp_suffix}/{best_idx}"

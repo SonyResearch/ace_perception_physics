@@ -913,6 +913,10 @@ class RacketContactOptimizer:
         self._rcm_pp = make_physics_params(self._rcm_params)
         self._nakashima_aero_pp = make_physics_params(self._nakashima_aero_params)
 
+        # 0426 aerodynamics: default old-model params (Cd=0.55, Cm linear)
+        self._0426_aero_params = get_params(test_new_model=False)
+        self._0426_aero_pp = make_physics_params(self._0426_aero_params)
+
         # Resolve models directory — configurable via ACE_MODELS_DIR env var
         import os
         _models_dir_env = os.environ.get("ACE_MODELS_DIR")
@@ -1006,7 +1010,8 @@ class RacketContactOptimizer:
 
         Args:
             physics: Unused, kept for API compatibility.
-            aero_model: "new" for piecewise 0226 model, "old" for constant Cd/Cm.
+            aero_model: "new" for piecewise 0226 model, "old" for constant Cd/Cm
+                        (Nakashima), "0426" for old linear Cd/Cm (Dürr et al.).
 
         Returns a trajectory dict or None if the simulation has too few steps.
         """
@@ -1030,6 +1035,11 @@ class RacketContactOptimizer:
                 state = predict_ball_state_old_model(
                     state, DT, self._nakashima_aero_pp,
                     self._nakashima_aero_params,
+                )
+            elif aero_model == "0426":
+                state = predict_ball_state_old_model(
+                    state, DT, self._0426_aero_pp,
+                    self._0426_aero_params,
                 )
             else:
                 state = predict_ball_state_new_model(
@@ -1871,10 +1881,33 @@ class RacketContactOptimizer:
                         except Exception as e:  # pylint: disable=broad-exception-caught
                             print(f"\tWarning: Simulated trajectory (latest) failed: {e}")
 
+                        # ── Simulated trajectory: ONNX 0426 RCM + 0426 aero (Dürr et al.) ──
+                        sim_traj_onnx_0426 = None
+                        try:
+                            _v_0426 = np.array([
+                                row.get("vx_post_onnx_0426", float("nan")),
+                                row.get("vy_post_onnx_0426", float("nan")),
+                                row.get("vz_post_onnx_0426", float("nan")),
+                            ])
+                            _w_0426 = np.array([
+                                row.get("wx_post_onnx_0426", float("nan")),
+                                row.get("wy_post_onnx_0426", float("nan")),
+                                row.get("wz_post_onnx_0426", float("nan")),
+                            ])
+                            if not (np.any(np.isnan(_v_0426)) or np.any(np.isnan(_w_0426))):
+                                sim_traj_onnx_0426 = self._simulate_post_contact(
+                                    [row["x_pre_refined"], row["y_pre_refined"], row["z_pre_refined"]],
+                                    _v_0426, _w_0426, _post_dur,
+                                    aero_model="0426",
+                                )
+                        except Exception as e:  # pylint: disable=broad-exception-caught
+                            print(f"\tWarning: Simulated trajectory (ONNX 0426) failed: {e}")
+
                         row["_simulated_trajectory"] = sim_traj
                         row["_simulated_trajectory_nakashima_refined"] = sim_traj_nakashima_refined
                         row["_simulated_trajectory_cpp_no_residual_refined"] = sim_traj_cpp_no_residual_refined
                         row["_simulated_trajectory_latest"] = sim_traj_latest
+                        row["_simulated_trajectory_onnx_0426"] = sim_traj_onnx_0426
                         contact_rows.append(row)
                         extracted_count += 1
 
@@ -1959,6 +1992,7 @@ class RacketContactOptimizer:
                 ("_simulated_trajectory_nakashima_refined", "simulated_trajectories_nakashima_refined"),
                 ("_simulated_trajectory_cpp_no_residual_refined", "simulated_trajectories_cpp_no_residual_refined"),
                 ("_simulated_trajectory_latest",       "simulated_trajectories_latest"),
+                ("_simulated_trajectory_onnx_0426",    "simulated_trajectories_onnx_0426"),
             ]
             for row_key, grp_name in _TRAJ_KEYS:
                 has_any = any(row.get(row_key) is not None for row in contact_rows)

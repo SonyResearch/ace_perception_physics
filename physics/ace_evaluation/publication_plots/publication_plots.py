@@ -56,11 +56,11 @@ MODEL_COLORS = {
     #"NakashimaITTF": "rgba(52, 168, 83, 0.8)",
     #"NakashimaPaper": "rgba(255, 165, 0, 0.8)",
     #"Residual0805": "rgba(200, 50, 200, 0.8)",
-    "Nakashima": "rgba(0, 114, 178, 0.8)",
-    "Nakashima (refined)": "rgba(0, 178, 114, 0.8)",
+    "Nakashima et al.": "rgba(0, 114, 178, 0.8)",
+    "Nakashima et al. (refined)": "rgba(0, 178, 114, 0.8)",
     #"ONNX alex (refined)": "rgba(0, 158, 115, 0.8)",
     "Current": "rgba(200, 50, 200, 0.8)",
-    "Dürr": "rgba(255, 127, 14, 0.8)",
+    "Dürr et al.": "rgba(255, 127, 14, 0.8)",
 }
 
 
@@ -528,8 +528,8 @@ def plot_aero_boxplot(dp, mc):
 
     models = [
         #("Optimal", "opt"),
-        ("Nakashima", "nakashima"),
-        ("Dürr", "0426"),
+        ("Nakashima et al.", "nakashima"),
+        ("Dürr et al.", "0426"),
         ("Current", "0226"),
     ]
 
@@ -562,6 +562,36 @@ def plot_aero_boxplot(dp, mc):
         yaxis=_pub_axis("Position RMSE (mm)"),
         xaxis=_pub_axis(""),
     )
+
+    # ── Terminal statistics ──────────────────────────────────────────────────
+    print("\n  [Aero violin] Improvement of Current over baselines (lower RMSE = better):")
+    # Collect per-model clipped RMSE arrays
+    clipped = {}
+    for m_label, m_key in models:
+        rmse_vals = error_dict.get(m_key)
+        if rmse_vals is None:
+            continue
+        filtered = rmse_vals[quality_mask]
+        valid = np.isfinite(filtered)
+        rmse_mm = filtered[valid] * 1000.0
+        clipped[m_label] = _clip_iqr(rmse_mm)
+
+    if "Current" in clipped:
+        cur = clipped["Current"]
+        cur_med = np.median(cur)
+        cur_p75 = np.percentile(cur, 75)
+        for baseline in ["Nakashima et al.", "Dürr et al."]:
+            if baseline not in clipped:
+                continue
+            bl = clipped[baseline]
+            bl_med = np.median(bl)
+            bl_p75 = np.percentile(bl, 75)
+            imp_med = (bl_med - cur_med) / bl_med * 100
+            imp_p75 = (bl_p75 - cur_p75) / bl_p75 * 100
+            print(f"    vs {baseline}: median {imp_med:+.1f}%, 75th pctl {imp_p75:+.1f}%")
+            print(f"      (Current median={cur_med:.2f}mm, 75th={cur_p75:.2f}mm | "
+                  f"{baseline} median={bl_med:.2f}mm, 75th={bl_p75:.2f}mm)")
+
     return fig
 
 
@@ -632,8 +662,8 @@ def plot_table_contact_boxplot(dp, mc):
 
     models = [
         #("NakashimaITTF", "ittf"),
-        ("Nakashima", "paper"),
-        ("Dürr", "0426"),
+        ("Nakashima et al.", "paper"),
+        ("Dürr et al.", "0426"),
         ("Current", "res0805"),
     ]
 
@@ -703,6 +733,39 @@ def plot_table_contact_boxplot(dp, mc):
             width=PLOT_WIDTH,
         ),
     )
+
+    # ── Terminal statistics ──────────────────────────────────────────────────
+    print("\n  [Table contact] Per-component improvement of Current over baselines (absolute error):")
+    all_comps = vel_comps + spin_comps
+    for comp, clabel in all_comps:
+        obs_key = f"{comp}_post"
+        if obs_key not in contact_data:
+            continue
+        # Collect per-model absolute errors
+        comp_errors = {}
+        for m_label, m_suffix in models:
+            model_key = f"{comp}_post_{m_suffix}"
+            if model_key not in contact_data:
+                continue
+            err = np.abs((np.asarray(contact_data[model_key]) - np.asarray(contact_data[obs_key]))[mask])
+            err = err[np.isfinite(err)]
+            if len(err) == 0:
+                continue
+            comp_errors[m_label] = _clip_iqr(err)
+
+        if "Current" not in comp_errors:
+            continue
+        cur = comp_errors["Current"]
+        cur_stats = (np.percentile(cur, 25), np.median(cur), np.percentile(cur, 75))
+        print(f"    {comp} — Current: 25th={cur_stats[0]:.4f}, median={cur_stats[1]:.4f}, 75th={cur_stats[2]:.4f}")
+        for baseline in ["Nakashima et al.", "Dürr et al."]:
+            if baseline not in comp_errors:
+                continue
+            bl = comp_errors[baseline]
+            bl_stats = (np.percentile(bl, 25), np.median(bl), np.percentile(bl, 75))
+            imp = tuple((bl_stats[i] - cur_stats[i]) / bl_stats[i] * 100 for i in range(3))
+            print(f"      vs {baseline}: 25th {imp[0]:+.1f}%, median {imp[1]:+.1f}%, 75th {imp[2]:+.1f}%")
+
     return fig
 
 
@@ -731,9 +794,9 @@ def export_rcm_csv(dp, mc, output_path: pathlib.Path):
     offset_cm = np.sqrt(dy ** 2 + dz ** 2) * 100.0
 
     models = [
-        ("Nakashima", "default"),
-        ("Nakashima (refined)", "nakashima_refined"),
-        ("Dürr", "onnx_0426"),
+        ("Nakashima et al.", "default"),
+        ("Nakashima et al. (refined)", "nakashima_refined"),
+        ("Dürr et al.", "onnx_0426"),
         ("Current", "onnx_alex_refined"),
     ]
     vel_comps = ["vx", "vy", "vz"]
@@ -791,9 +854,9 @@ def plot_rcm_boxplot(dp, mc):
     band_labels = ["0–5 cm", "5+ cm"]
 
     models = [
-        ("Nakashima", "default"),
-        ("Nakashima (refined)", "nakashima_refined"),
-        ("Dürr", "onnx_0426"),
+        ("Nakashima et al.", "default"),
+        ("Nakashima et al. (refined)", "nakashima_refined"),
+        ("Dürr et al.", "onnx_0426"),
         ("Current", "onnx_alex_refined"),
     ]
 
@@ -855,6 +918,44 @@ def plot_rcm_boxplot(dp, mc):
             width=PLOT_WIDTH,
         ),
     )
+
+    # ── Terminal statistics ──────────────────────────────────────────────────
+    print("\n  [RCM violin] Magnitude error statistics (all offset bands combined):")
+    # Collect magnitude errors per model across all bands
+    combined_mask = base_mask & np.isfinite(offset_cm)
+    for row_idx, (comps, unit, kind) in enumerate(
+        [(vel_comps, "m/s", "Velocity"), (spin_comps, "rad/s", "Spin")]
+    ):
+        obs_mag = _compute_magnitude(rcm_data, combined_mask, comps, suffix=None)
+        model_abs_err = {}
+        for m_label, m_suffix in models:
+            model_mag = _compute_magnitude(rcm_data, combined_mask, comps, suffix=m_suffix)
+            err = np.abs(model_mag - obs_mag)
+            err = _clip_iqr(err)
+            model_abs_err[m_label] = err
+
+        print(f"\n    {kind} magnitude ({unit}):")
+        if "Current" in model_abs_err:
+            cur = model_abs_err["Current"]
+            cur_stats = (np.percentile(cur, 25), np.median(cur), np.percentile(cur, 75))
+            print(f"      Current: 25th={cur_stats[0]:.4f}, median={cur_stats[1]:.4f}, 75th={cur_stats[2]:.4f}")
+            for baseline in ["Nakashima et al.", "Nakashima et al. (refined)", "Dürr et al."]:
+                if baseline not in model_abs_err:
+                    continue
+                bl = model_abs_err[baseline]
+                bl_stats = (np.percentile(bl, 25), np.median(bl), np.percentile(bl, 75))
+                imp = tuple((bl_stats[i] - cur_stats[i]) / bl_stats[i] * 100 for i in range(3))
+                print(f"      vs {baseline}: 25th {imp[0]:+.1f}%, median {imp[1]:+.1f}%, 75th {imp[2]:+.1f}%")
+
+        # Nakashima refined vs Nakashima
+        if "Nakashima et al. (refined)" in model_abs_err and "Nakashima et al." in model_abs_err:
+            ref = model_abs_err["Nakashima et al. (refined)"]
+            nak = model_abs_err["Nakashima et al."]
+            ref_stats = (np.percentile(ref, 25), np.median(ref), np.percentile(ref, 75))
+            nak_stats = (np.percentile(nak, 25), np.median(nak), np.percentile(nak, 75))
+            imp = tuple((nak_stats[i] - ref_stats[i]) / nak_stats[i] * 100 for i in range(3))
+            print(f"      Nakashima (refined) vs Nakashima: 25th {imp[0]:+.1f}%, median {imp[1]:+.1f}%, 75th {imp[2]:+.1f}%")
+
     return fig
 
 
