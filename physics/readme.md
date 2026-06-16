@@ -1,4 +1,4 @@
-<h1> Physics Models for Sim-to-Real Transfer\\in Professional-Level Robot Table Tennis </h1>
+<h1> Physics Models for Sim-to-Real Transfer in Professional-Level Robot Table Tennis </h1>
 
 This repositry contains the code for the paper "Physics Models for Sim-to-Real Transfer in Professional-Level Robot Table Tennis".
 
