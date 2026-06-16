@@ -1,0 +1,22 @@
+# Requirements for Table Tennis Evaluation App
+
+# GUI framework (LGPL v3)
+PySide6>=6.5.0
+
+# Fast interactive plotting
+pyqtgraph>=0.13.0
+
+# Data handling
+numpy>=1.21.0
+pandas>=1.3.0
+h5py>=3.0.0
+
+# Scientific computing
+scipy>=1.7.0
+
+# Plotting / export
+matplotlib>=3.5.0
+plotly>=5.0.0
+
+# Optional: JIT-accelerated numeric loops (graceful fallback if absent)
+# numba>=0.56.0
