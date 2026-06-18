@@ -58,7 +58,7 @@ class Scaler(Enum):
         return scaler_instance
 
     @staticmethod
-    def inverse_transform_torch(scaler, tensor: torch.Tensor) -> torch.tensor:
+    def inverse_transform_torch(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Assign the appropriate inverse transform method based on the scaler type."""
         if isinstance(scaler, MinMaxScaler):
             return Scaler._inverse_transform_min_max(scaler, tensor)
@@ -87,76 +87,42 @@ class Scaler(Enum):
     def _transform_min_max(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Apply MinMax scaling"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            scale_ = torch.as_tensor(scaler.scale_, dtype=dtype).cpu()
-            min_ = torch.as_tensor(scaler.min_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            scale_ = torch.as_tensor(scaler.scale_, dtype=dtype).cuda()
-            min_ = torch.as_tensor(scaler.min_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        scale_ = torch.as_tensor(scaler.scale_, dtype=dtype, device=device)
+        min_ = torch.as_tensor(scaler.min_, dtype=dtype, device=device)
         if scale_ is None or min_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'transform'.")
-
-        tensor = tensor * scale_ + min_
-        return tensor
+        return tensor * scale_ + min_
 
     @staticmethod
     def _transform_standard(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Apply Standard scaling"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            mean_ = torch.as_tensor(scaler.mean_, dtype=dtype).cpu()
-            var_ = torch.as_tensor(scaler.var_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            mean_ = torch.as_tensor(scaler.mean_, dtype=dtype).cuda()
-            var_ = torch.as_tensor(scaler.var_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        mean_ = torch.as_tensor(scaler.mean_, dtype=dtype, device=device)
+        var_ = torch.as_tensor(scaler.var_, dtype=dtype, device=device)
         if mean_ is None or var_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'transform'.")
-
-        tensor = (tensor - mean_) / var_
-        return tensor
+        return (tensor - mean_) / var_
 
     @staticmethod
     def _transform_robust(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Apply Robust scaling"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            center_ = torch.as_tensor(scaler.center_, dtype=dtype).cpu()
-            scale_ = torch.as_tensor(scaler.scale_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            center_ = torch.as_tensor(scaler.center_, dtype=dtype).cuda()
-            scale_ = torch.as_tensor(scaler.scale_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        center_ = torch.as_tensor(scaler.center_, dtype=dtype, device=device)
+        scale_ = torch.as_tensor(scaler.scale_, dtype=dtype, device=device)
         if center_ is None or scale_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'transform'.")
-
-        tensor = (tensor - center_) / scale_
-        return tensor
+        return (tensor - center_) / scale_
 
     @staticmethod
     def _transform_quantile(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Apply QuantileTransformer scaling (ONNX-compatible)"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype).cpu()
-            references = torch.as_tensor(scaler.references_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype).cuda()
-            references = torch.as_tensor(scaler.references_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError("Unsupported tensor device")
-
+        device = tensor.device
+        quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype, device=device)
+        references = torch.as_tensor(scaler.references_, dtype=dtype, device=device)
         if not hasattr(scaler, "quantiles_"):
             raise RuntimeError("Scaler has not been fitted yet.")
 
@@ -180,79 +146,48 @@ class Scaler(Enum):
             weights = (x - x0) / torch.clamp(x1 - x0, min=1e-8)
             result[:, feature_idx] = y0 + weights * (y1 - y0)
 
-        result = torch.clamp(result, 0.0, 1.0)
-        return result
+        return torch.clamp(result, 0.0, 1.0)
 
     @staticmethod
     def _inverse_transform_min_max(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Undo MinMax scaling"""
-        if tensor.is_cpu:
-            scale_ = torch.tensor(scaler.scale_).cpu()
-            min_ = torch.tensor(scaler.min_).cpu()
-        elif tensor.is_cuda:
-            scale_ = torch.tensor(scaler.scale_).cuda()
-            min_ = torch.tensor(scaler.min_).cuda()
-        else:
-            raise RuntimeError
+        device = tensor.device
+        scale_ = torch.tensor(scaler.scale_, device=device)
+        min_ = torch.tensor(scaler.min_, device=device)
         if scale_ is None or min_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'inverse_transform'.")
-
-        tensor = tensor - min_
-        tensor = tensor / scale_
-        return tensor
+        return (tensor - min_) / scale_
 
     @staticmethod
     def _inverse_transform_standard(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Undo Standard scaling"""
-        if tensor.is_cpu:
-            mean_ = torch.tensor(scaler.mean_).cpu()
-            var_ = torch.tensor(scaler.var_).cpu()
-        elif tensor.is_cuda:
-            mean_ = torch.tensor(scaler.mean_).cuda()
-            var_ = torch.tensor(scaler.var_).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        mean_ = torch.tensor(scaler.mean_, device=device)
+        var_ = torch.tensor(scaler.var_, device=device)
         if mean_ is None or var_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'inverse_transform'.")
-
-        tensor = tensor * var_ + mean_
-        return tensor
+        return tensor * var_ + mean_
 
     @staticmethod
     def _inverse_transform_robust(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Undo Robust scaling"""
-        if tensor.is_cpu:
-            center_ = torch.tensor(scaler.center_).cpu()
-            scale_ = torch.tensor(scaler.scale_).cpu()
-        elif tensor.is_cuda:
-            center_ = torch.tensor(scaler.center_).cuda()
-            scale_ = torch.tensor(scaler.scale_).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        center_ = torch.tensor(scaler.center_, device=device)
+        scale_ = torch.tensor(scaler.scale_, device=device)
         if center_ is None or scale_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'inverse_transform'.")
-
-        tensor = tensor * scale_ + center_
-        return tensor
+        return tensor * scale_ + center_
 
     @staticmethod
     def _inverse_transform_quantile(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Undo QuantileTransformer scaling (ONNX-compatible)"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype).cpu()
-            references = torch.as_tensor(scaler.references_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype).cuda()
-            references = torch.as_tensor(scaler.references_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError("Unsupported tensor device")
+        device = tensor.device
+        quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype, device=device)
+        references = torch.as_tensor(scaler.references_, dtype=dtype, device=device)
 
         if not hasattr(scaler, "quantiles_"):
-            raise RuntimeError("Scaler has not been fitted yet.")
+            raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'inverse_transform'.")
 
         tensor_clipped = torch.clamp(tensor, 0.0, 1.0)
         n_features = quantiles.shape[1]
