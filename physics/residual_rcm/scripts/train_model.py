@@ -352,10 +352,18 @@ class Regressor(L.LightningModule):
         # Define the file name for the ONNX model
         onnx_file_path = Path.cwd() / (self.model_name + ".onnx")
 
-        output_names = ["Velocity_Output", "Spin_Output", "Log_Std", "Std"]
+        # Export the traced model to ONNX
         if self.residual_model_bool:
-            output_names.extend(["Velocity_Output_Att", "Spin_Output_Att"])
-
+            output_names = [
+                "Velocity_Output",
+                "Spin_Output",
+                "Velocity_Output_Att",
+                "Spin_Output_Att",
+                "Log_Std",
+                "Std",
+            ]
+        else:
+            output_names = ["Velocity_Output", "Spin_Output", "Log_Std", "Std"]
         
         torch.onnx.export(
             self,  # The model
