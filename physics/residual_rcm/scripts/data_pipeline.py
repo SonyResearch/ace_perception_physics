@@ -243,12 +243,11 @@ class ArrayDataModule(LightningDataModule):
         self.scaler_input: Scaler = Scaler.get_scaler(Scaler(scaler_type))
         self.scaler_output: Scaler = Scaler.get_scaler(Scaler(scaler_type))
 
-
         # Only for residual model
         self.physics = get_params()
         self.nakashima_matrix = get_nakashima_matrix(self.physics)
 
-        # Setup method will fill these
+        # Initialize placeholders to be filled later
         self.input_dataset: np.ndarray
         self.output_dataset: np.ndarray
         self.info_dataset: np.ndarray
@@ -261,26 +260,21 @@ class ArrayDataModule(LightningDataModule):
 
         self.cluster_centers = np.array([])
 
-        self.inplace_rotation = None
-
-        # def setup(self, stage=None):  # pylint: disable=unused-argument
+    def setup(self, stage=None):
         """Pre-processing of the dataset"""
-        self.input_dataset, self.output_dataset, self.info_dataset = self._get_dataset_from_csv()
-
-        print("self.residual_model_bool", self.residual_model_bool)
-
-        # Apply Scaler
-        self.scaler_input.fit(self.input_dataset)
-        self.scaler_output.fit(self.output_dataset)
+        super().setup(stage)
+        self.input_dataset, self.output_dataset, self.info_dataset = self._get_dataset_from_csv(plot_histograms=self.cfg.plot_histograms)
 
         data_tensor = torch.tensor(self.input_dataset, dtype=torch.float32)
         labels_tensor = torch.tensor(self.output_dataset, dtype=torch.float32)
 
         full_dataset = TensorDataset(data_tensor, labels_tensor)
 
-        self.train_size = int(self.train_perc * len(self.input_dataset))
-        self.val_size = int(self.test_perc * len(self.input_dataset))
-        self.test_size = len(self.input_dataset) - self.train_size - self.val_size
+        total_samples = len(self.input_dataset)
+        self.train_size = int(self.train_perc * total_samples)
+        
+        self.val_size = int(self.val_perc * total_samples) 
+        self.test_size = total_samples - self.train_size - self.val_size
 
         self.train_dataset, self.val_dataset, self.test_dataset = random_split(
             full_dataset,
@@ -288,15 +282,21 @@ class ArrayDataModule(LightningDataModule):
             generator=torch.Generator().manual_seed(self.seed_splitting),
         )
 
-        print("train: ", len(self.train_dataset), "vel: ", len(self.val_dataset), "test: ", len(self.test_dataset))
+        print(f"train: {len(self.train_dataset)}, val: {len(self.val_dataset)}, test: {len(self.test_dataset)}")
 
-        self.cluster_centers = self.fit_cluster()
+        # Fit Scalers & Clusters ONLY on Training Data
+        train_indices = self.train_dataset.indices
+        train_input_data = self.input_dataset[train_indices]
+        train_output_data = self.output_dataset[train_indices]
 
-    def fit_cluster(self):
+        self.scaler_input.fit(train_input_data)
+        self.scaler_output.fit(train_output_data)
 
-        model_input_data = self.input_dataset  # all data
+        self.cluster_centers = self.fit_cluster(train_input_data)
 
-        X = self.scaler_input.transform(model_input_data)[:, :6]
+    def fit_cluster(self, train_data: np.ndarray):
+        """Fit KMeans clustering on the training data to find cluster centers."""
+        X = self.scaler_input.transform(train_data)[:, :6]
         kmeans = KMeans(n_clusters=1000, random_state=0, n_init="auto").fit(X)
 
         return kmeans.cluster_centers_
