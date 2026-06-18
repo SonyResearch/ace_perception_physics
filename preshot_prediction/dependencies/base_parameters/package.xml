@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>base_parameters</name>
+  <version>1.0.22</version>
+  <description>Package that contains base parameter class.</description>
+  <maintainer email="dario.brescianini@sony.com">SonyAI-Zurich</maintainer>
+  <license>Confidential, Copyright 2025, Sony AI, All rights reserved.</license>
+
+  <depend >ace_setuptools</depend>
+  <depend >ace_loggers</depend>
+  <depend>ace_yaml</depend>
+  <buildtool_depend>ament_cmake_ros</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

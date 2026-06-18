@@ -1,0 +1,592 @@
+#!/usr/bin/env python3
+# Confidential, Copyright 2025, Sony AI, All rights reserved.
+"""
+Camera calibration toolbox.
+"""
+import argparse
+import collections
+import concurrent.futures
+import copy
+import logging
+import os
+import shutil
+import sys
+import zipfile
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy
+import tqdm
+import yaml
+from ace_loggers import logger_pybind as ace_logger
+from ament_index_python.packages import get_package_share_directory
+from calibration.calibox import calibox_april, calibox_utils, calibox_wand
+from mpl_toolkits.mplot3d import Axes3D  # pylint: disable=unused-import
+
+log = logging.getLogger(__name__)
+
+
+def find_image_files(recording_dir):
+    """
+    Find and organize image files from the specified recording directory.
+
+    @param recording_dir: Path to the directory containing APS/EVS image files.
+
+    @return: A tuple containing:
+        - camera_data_paths: Dictionary mapping camera names to their data paths.
+        - image_infos: Dictionary mapping pattern names to camera image paths.
+    """
+    camera_data_paths = {}
+    for data_type in ["aps", "evs"]:
+        calib_data_path = os.path.join(recording_dir, data_type)
+        if not os.path.isdir(calib_data_path):
+            log.warning("No data found for %s", data_type)
+            continue
+
+        for camera_name in os.listdir(calib_data_path):
+            camera_data_path = os.path.join(calib_data_path, camera_name)
+            if not os.path.isdir(camera_data_path):
+                log.warning('Unexpected file "%s"', camera_data_path)
+                continue
+
+            camera_data_paths[camera_name] = camera_data_path
+
+    image_infos = collections.defaultdict(dict)
+    for camera_name, camera_data_path in camera_data_paths.items():
+        for image_name in os.listdir(camera_data_path):
+            if image_name.endswith(".npz"):
+                continue
+
+            img_path = os.path.join(camera_data_path, image_name)
+            pattern_name = os.path.splitext(image_name)[0]
+            image_infos[pattern_name][camera_name] = img_path
+    return camera_data_paths, image_infos
+
+
+def load_or_detect_points(img_path, detector, n_object_points, lut_transforms=None, load_detections=True):
+    """
+    Load detected points from a file or detect them from an image.
+
+    @param img_path: Path to the image file.
+    @param detector: The detector instance used for point detection.
+    @param n_object_points: Number of points in the reference object.
+    @param lut_transforms: List of lookup table transformations for brightness correction (optional).
+    @param load_detection: Specifies whether to load detections from npz files (default: True).
+
+    @return: A tuple containing:
+        - image_points: Array of detected 2D points.
+        - image_size: Size of the input image as a tuple (width, height).
+    """
+    detection_data_path = f"{img_path}.npz"
+    if load_detections and os.path.isfile(detection_data_path):
+        try:
+            img_detection_data = numpy.load(detection_data_path)
+            image_points = img_detection_data["image_points"]
+            image_size = img_detection_data["image_size"]
+            return image_points, image_size
+        except (EOFError, zipfile.BadZipFile):
+            log.warning('File "%s" is corrupted', detection_data_path)
+
+    img_bgr = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    image_size = numpy.array(img_bgr.shape[1::-1])
+
+    if lut_transforms is None:
+        retval, image_points = detector.detect(img_bgr)
+    else:
+        image_points = numpy.full((n_object_points, 2), numpy.nan)
+        for lut in lut_transforms:
+            retval, curr_image_points = detector.detect(cv2.LUT(img_bgr, lut))
+            if not retval:
+                continue
+
+            curr_visibility_mask = numpy.isfinite(curr_image_points).all(axis=1)
+            image_points[curr_visibility_mask] = curr_image_points[curr_visibility_mask]
+
+    numpy.savez(detection_data_path, image_points=image_points, image_size=image_size)
+    return image_points, image_size
+
+
+def detect_image_points(image_infos, detector, n_object_points, lut_transforms=None, show_extraction=False):
+    """
+    Detect feature points in images and store the results.
+
+    @param image_infos: Dictionary mapping pattern names to camera image paths.
+    @param detector: The detector instance used for point detection.
+    @param n_object_points: Number of points in the reference object.
+    @param lut_transforms: List of lookup table transformations for brightness correction (optional).
+    @param show_extraction: Boolean flag to visualize detected points (default is False).
+
+    @return: A tuple containing:
+        - detection_infos: Dictionary mapping pattern names to detected points for each camera.
+        - resolution_params: Dictionary containing resolution for each camera.
+    """
+    detection_infos = collections.defaultdict(dict)
+    observation_infos = collections.defaultdict(int)
+    resolution_params = collections.defaultdict(dict)
+
+    if show_extraction:
+        camera_names = set()
+        for camera_image_path in image_infos.values():
+            camera_names.update(camera_image_path.keys())
+        viz = ImageVisualizer(camera_names)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {}
+        for pattern_name, camera_image_path in tqdm.tqdm(image_infos.items(), desc="Extracting features - 1/2"):
+            for camera_name, img_path in camera_image_path.items():
+                future = executor.submit(load_or_detect_points, img_path, detector, n_object_points, lut_transforms)
+                futures[future] = (camera_name, pattern_name, img_path)
+
+        for future in tqdm.tqdm(
+            concurrent.futures.as_completed(futures), total=len(futures), desc="Extracting features - 2/2"
+        ):
+            camera_name, pattern_name, img_path = futures[future]
+            camera_calib = resolution_params[camera_name]
+            image_points, image_size = future.result()
+
+            if not numpy.allclose(camera_calib.setdefault("resolution", image_size), image_size):
+                raise ValueError(
+                    f'image_size={image_size} for "{img_path}" is different from expected {camera_calib["resolution"]}'
+                )
+
+            visibility_mask = numpy.isfinite(image_points).all(axis=1)
+            observation_infos[pattern_name] += numpy.count_nonzero(visibility_mask)
+            detection_infos[pattern_name][camera_name] = image_points
+
+            if show_extraction:
+                viz.show(camera_name, img_path, image_points)
+
+    for pattern_name, total_observations in sorted(observation_infos.items()):
+        if total_observations == 0:
+            log.debug('All "%s" images do not display any visible patterns!', pattern_name)
+            del detection_infos[pattern_name]
+    return detection_infos, resolution_params
+
+
+def compute_intrinsics(object_points, detection_infos, calibration_params):
+    """
+    Compute camera intrinsics and pattern relative poses based on detected points.
+
+    @param object_points: Array of 3D points in the object coordinate space.
+    @param detection_infos: Dictionary mapping pattern names to detected points for each camera.
+    @param calibration_params: Dictionary containing calibration parameters for each camera.
+
+    @return: A tuple containing:
+             - calibration_params: Updated camera calibration parameters with optimized intrinsics.
+             - relative_poses: Dictionary mapping pattern names to their optimized relative poses to the cameras.
+    """
+    calibration_params = copy.deepcopy(calibration_params)
+    relative_poses = {}
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {}
+        for camera_name, camera_calib in tqdm.tqdm(calibration_params.items(), desc="Estimating intrinsics - 1/2"):
+            future = executor.submit(
+                calibox_utils.calibrate_camera, object_points, camera_name, camera_calib, detection_infos
+            )
+            futures[future] = camera_name
+
+        for future in tqdm.tqdm(
+            concurrent.futures.as_completed(futures), total=len(futures), desc="Estimating intrinsics - 2/2"
+        ):
+            camera_name = futures[future]
+            camera_calib = calibration_params[camera_name]
+            (
+                camera_calib["camera_matrix"],
+                camera_calib["distortion_coeffs"],
+                relative_poses[camera_name],
+            ) = future.result()
+    return calibration_params, relative_poses
+
+
+class ImageVisualizer:
+    """
+    A class to visualize images from multiple cameras in a single window.
+    """
+
+    def __init__(self, camera_names, window_name="Viz"):
+        """
+        Initializes the class with given camera names and visualization window name.
+
+        @param camera_names: A list of camera names to be used for visualization.
+        @param window_name: A string label for the visualization window (default is "Viz").
+        """
+        self._enabled = True
+        self._window_name = window_name
+
+        # TODO: Improve the logic and remove magic numbers
+        num_images = numpy.array([3, 4], numpy.int32)
+        paddings = numpy.array([30, 30], numpy.int32)
+        img_size = numpy.array([270, 360], numpy.int32)
+        full_size = (num_images + 1) * paddings + num_images * img_size
+        self._full_img = numpy.zeros(numpy.hstack([full_size, 3]), dtype=numpy.uint8)
+
+        self._offsets = {}
+        for index, camera_name in enumerate(camera_names):
+            img_index = numpy.array([index // num_images[1], index % num_images[1]], numpy.int32)
+            self._offsets[camera_name] = paddings + img_index * (img_size + paddings)
+
+    def wait(self, wait_ms):
+        """
+        Waits for user input while displaying the visualization window.
+
+        @param wait_ms: The waiting time for user input in milliseconds.
+        """
+        if not self._enabled:
+            return
+        if cv2.waitKey(wait_ms) == ord("q"):
+            self._enabled = False
+            cv2.destroyWindow(self._window_name)
+            cv2.waitKey(1)
+
+    def show(self, camera_name, img, *args, wait_ms=1, **kwargs):
+        """
+        Displays the image from the specified camera in the visualization window.
+
+        @param camera_name: The name of the camera whose image is to be displayed.
+        @param img: Either the path to the image file or the image data array to be displayed.
+        @param wait_ms: The waiting time for user input in milliseconds (default is 1).
+        """
+        if not self._enabled:
+            return
+        if isinstance(img, str):
+            img = cv2.imread(img, cv2.IMREAD_COLOR)
+        if args or kwargs:
+            img = draw_points(img, *args, **kwargs)
+        offset = self._offsets[camera_name]
+        self._full_img[offset[0] : offset[0] + img.shape[0], offset[1] : offset[1] + img.shape[1]] = img
+        cv2.imshow(self._window_name, self._full_img)
+        if wait_ms >= 0:
+            self.wait(wait_ms)
+
+
+def viz_pose(axis, pose, label, length=0.1):
+    """
+    Visualizes a pose in a 3D plot given a 4x4 transformation matrix.
+
+    @param axis: The 3D axis to plot on.
+    @param pose: A 4x4 transformation matrix representing the pose.
+    @param label: Label to display at the pose location.
+    @param length: Length of the axes to visualize (default is 0.1).
+    """
+    colors = numpy.eye(3)
+    basis = numpy.matmul(pose[:3, :3], length * colors)
+
+    labels = ["X-axis", "Y-axis", "Z-axis"]
+    for i in range(3):
+        axis.quiver(*pose[:3, 3], *basis[i], color=colors[i], label=labels[i])
+    axis.text(*pose[:3, 3], label, color="k")
+
+
+def draw_points(img, image_points, circle_radius=2, circle_color=(0, 255, 0), scale=0.25):
+    """
+    Draw detected points on an image.
+
+    @param img: Either the path to the image file or the image data array.
+    @param image_points: Array of detected 2D points to visualize.
+    @param circle_radius: Radius of the circles used to visualize points (default is 2).
+    @param circle_color: Color of the circles used to visualize points (default is green).
+    @param scale: Scaling factor for the displayed image (default is 0.25).
+
+    @return: The image with drawn points.
+    """
+    if isinstance(img, str):
+        img = cv2.imread(img, cv2.IMREAD_COLOR)
+    image_points_rounded = (image_points + 0.5).astype(numpy.int32)
+
+    for point in image_points_rounded:
+        cv2.circle(img, tuple(point), circle_radius, circle_color, -1, cv2.LINE_AA)
+
+    if not numpy.isclose(scale, 1.0):
+        img = cv2.resize(img, (0, 0), fx=scale, fy=scale)
+    return img
+
+
+def final_report(projection_infos, detection_infos):
+    """
+    Generate a final report of projection errors.
+
+    @param projection_infos: Dictionary mapping pattern names to projected points for each camera.
+    @param detection_infos: Dictionary mapping pattern names to detected points for each camera.
+    """
+    overall_errors = []
+    camera_error_infos = collections.defaultdict(list)
+    for pattern_name, projection_info in projection_infos.items():
+        for camera_name, projected_points in projection_info.items():
+            image_points = detection_infos[pattern_name][camera_name]
+            visibility_mask = numpy.isfinite(image_points).all(axis=1)
+            proj_diff = projected_points[visibility_mask] - image_points[visibility_mask]
+            overall_errors.append(proj_diff)
+            camera_error_infos[camera_name].append(proj_diff)
+
+    numpy.set_printoptions(suppress=True, precision=2)
+    for camera_name, errors in camera_error_infos.items():
+        errors = numpy.vstack(errors)
+        cam_mean, cam_std = numpy.nanmean(errors, axis=0), numpy.nanstd(errors, axis=0)
+        cam_rmse = numpy.nanmean(errors.ravel() ** 2) ** 0.5
+        log_func = log.error if numpy.any(cam_std > 0.7) else (log.warning if numpy.any(cam_std > 0.4) else log.info)
+        log_func("%s: %s \U000000B1 %spx (rmse: %5.2fpx)", camera_name, cam_mean, cam_std, cam_rmse)
+    overall_errors = numpy.vstack(overall_errors)
+    overall_mean, overall_std = numpy.nanmean(overall_errors, axis=0), numpy.nanstd(overall_errors, axis=0)
+    overall_rmse = numpy.nanmean(overall_errors.ravel() ** 2) ** 0.5
+    log_func = (
+        log.error if numpy.any(overall_std > 0.7) else (log.warning if numpy.any(overall_std > 0.4) else log.info)
+    )
+    log_func("Overall: %s \U000000B1 %spx (rmse: %5.2fpx)", overall_mean, overall_std, overall_rmse)
+
+
+def show_viz(projection_infos, calibration_params, pattern_poses, image_infos):
+    """
+    Visualize the estimated poses and detected points.
+
+    @param projection_infos: Dictionary mapping pattern names to detected and projected points for each camera.
+    @param calibration_params: Dictionary containing calibration parameters for each camera.
+    @param pattern_poses: Dictionary mapping pattern names to their estimated poses.
+    @param image_infos: Dictionary mapping pattern names to camera image paths.
+    """
+    # Visualization of the poses
+    fig = plt.figure()
+    axis = fig.add_subplot(111, projection="3d")
+    axis.set_xlabel("X")
+    axis.set_ylabel("Y")
+    axis.set_zlabel("Z")
+
+    for camera_name, camera_calib in calibration_params.items():
+        if not isinstance(camera_calib, dict):
+            log.warning("%s is not a valid camera!", camera_name)
+            continue
+        viz_pose(axis, numpy.linalg.inv(camera_calib["T_CW"]), camera_name, 0.3)
+
+    for pattern_name, (pattern_pose, _) in pattern_poses.items():
+        viz_pose(axis, pattern_pose, "", 0.1)
+
+    plt.show()
+
+    # Visualization of the image points
+    camera_names = [
+        camera_name for camera_name, camera_calib in calibration_params.items() if isinstance(camera_calib, dict)
+    ]
+    viz = ImageVisualizer(camera_names)
+    for pattern_name, projection_info in projection_infos.items():
+        for camera_name, projected_points in projection_info.items():
+            img_path = image_infos[pattern_name][camera_name]
+            viz.show(camera_name, img_path, projected_points, wait_ms=-1)
+        viz.wait(0)
+
+
+def load_calibration_params(calibration_params_path):
+    """
+    Load calibration parameters from a YAML file.
+
+    @param calibration_params_path: Path to the calibration parameters YAML file.
+
+    @return: A dictionary containing calibration parameters, or an empty dictionary if not found.
+    """
+    try:
+        with open(calibration_params_path, "r", encoding="utf8") as file:
+            calibration_params = yaml.load(file, Loader=yaml.FullLoader)
+        calibration_params.pop("T_WO", None)
+        for camera_calib in calibration_params.values():
+            for key in ["resolution", "camera_matrix", "distortion_coeffs"]:
+                camera_calib[key] = numpy.array(camera_calib[key])
+    except FileNotFoundError:
+        calibration_params = {}
+    return calibration_params
+
+
+def save_calibration_params(calibration_params, calibration_params_path):
+    """
+    Save calibration parameters to a YAML file.
+
+    @param calibration_params: Dictionary containing calibration parameters.
+    @param calibration_params_path: Path to the calibration parameters YAML file.
+    """
+    if os.path.isfile(calibration_params_path):
+        shutil.copy2(calibration_params_path, f"{calibration_params_path}.bak")
+
+    # Prepare for serialization
+    for camera_calib in calibration_params.values():
+        camera_calib.update(
+            {
+                "distortion_coeffs": camera_calib["distortion_coeffs"].ravel()[:4],
+                "rotation": 0,
+            }
+        )
+    calibration_params.update({"T_WO": numpy.eye(4)})
+
+    yaml.add_representer(collections.defaultdict, lambda dumper, data: dumper.represent_dict(dict(data)))
+    yaml.add_representer(numpy.ndarray, lambda dumper, data: dumper.represent_list(data.tolist()))
+    yaml.add_representer(float, lambda dumper, data: dumper.represent_scalar("tag:yaml.org,2002:float", f"{data:.17f}"))
+    with open(calibration_params_path, "w", encoding="utf8") as file:
+        yaml.dump(calibration_params, file, default_flow_style=None, sort_keys=False)
+
+
+def parse_args(argv) -> argparse.Namespace:
+    """
+    Parse command-line arguments specific to the calibration toolbox.
+
+    @param argv: List of command-line arguments.
+
+    @return: Parsed argument object containing the command-line options.
+    """
+    parser = argparse.ArgumentParser(
+        description="Calibration Toolbox", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument("-l", "--log-level", default=logging.INFO, help="Set the logging level")
+    parser.add_argument("--config", type=str, required=True, help="Laboratory configuration name")
+    parser.add_argument(
+        "-dir", "--recording-dir", required=True, help="Path to the folder containing the APS/EVS image files"
+    )
+    parser.add_argument(
+        "--brightness-alpha",
+        "-a",
+        type=float,
+        default=[0.7, 0.85, 1.0],
+        nargs="+",
+        help="List of image brightness alpha corrections",
+    )
+    parser.add_argument("--sampling", "-n", type=int, default=1, help="Sampling factor for images")
+    parser.add_argument("--show-extraction", action="store_true", help="Show extractions while calibrating")
+    parser.add_argument("--estimate-intrinsics", "-i", action="store_true", help="Estimate initial camera intrinsics")
+    parser.add_argument(
+        "--perform-refinement",
+        "-r",
+        action="store_true",
+        help="Perform intrinsics refinement on the results after pose-graph optimization",
+    )
+
+    subparsers = parser.add_subparsers(dest="detector", required=True, help="Detector type")
+
+    calibox_april.add_parser(subparsers)
+    calibox_wand.add_parser(subparsers)
+
+    return parser.parse_args(argv)
+
+
+def main(argv):
+    """Main entry point for the calibration toolbox script.
+
+    @param argv: List of command-line arguments passed to the script.
+
+    @return: 0 if the program runs successfully.
+    """
+    args = parse_args(argv[1:])
+    ace_logger.initialize()
+    ace_logger.set_level(str(args.log_level))
+    log.setLevel(args.log_level)
+
+    if args.detector == "april":
+        detector = calibox_april.Detector(args)
+    elif args.detector == "wand":
+        detector = calibox_wand.Detector(args)
+    else:
+        raise NotImplementedError(f"{args.detector} is not supported yet!")
+
+    object_points = detector.get_object_points()
+
+    # Since later detections overwrite previous ones,
+    # we need to start from the most bright (thus noisy) image
+    lut_transforms = [
+        numpy.clip(numpy.arange(256) ** (1.0 / alpha), 0, 255).astype(numpy.uint8)
+        for alpha in sorted(args.brightness_alpha)
+    ]
+
+    camera_data_paths, image_infos = find_image_files(args.recording_dir)
+
+    calibration_params_path = os.path.realpath(
+        os.path.join(
+            get_package_share_directory("calibration"),
+            "parameters",
+            "camera_calibration",
+            args.config + ".yaml",
+        )
+    )
+    calibration_params = load_calibration_params(calibration_params_path)
+
+    # Maintain order of cameras to that of previous calib file
+    # so that git diff looks nice
+    prev_camera_names = list(calibration_params.keys())
+    camera_names = sorted(
+        camera_data_paths,
+        key=lambda camera_name: prev_camera_names.index(camera_name)
+        if camera_name in prev_camera_names
+        else camera_name,
+    )
+    log.info("Found %u cameras:", len(camera_names))
+    for camera_name in camera_names:
+        log.info("- %s", camera_name)
+
+        camera_calib = calibration_params.setdefault(
+            camera_name,
+            {
+                "camera_model": "pinhole",
+                "camera_matrix": None,
+                "distortion_enable": True,
+                "distortion_model": "radtan",
+                "distortion_coeffs": None,
+                "T_CW": numpy.eye(4),
+            },
+        )
+        # For now, we only support these models
+        assert camera_calib["distortion_model"] == "radtan"
+        assert camera_calib["camera_model"] == "pinhole"
+
+    image_infos = dict(sorted(image_infos.items()))
+    log.info("Found %u image per camera.", len(image_infos))
+    if args.sampling != 1:
+        # Initial filtering via `args.sampling` to reduce number of images, if too exacissive
+        image_infos = {
+            pattern_name: camera_image_path
+            for i, (pattern_name, camera_image_path) in enumerate(image_infos.items())
+            if i % args.sampling == 0
+        }
+        log.info("Images got down-sampled to %u image per camera.", len(image_infos))
+
+    detection_infos, resolution_params = detect_image_points(
+        image_infos, detector, object_points.shape[0], lut_transforms, show_extraction=args.show_extraction
+    )
+    detection_infos = dict(sorted(detection_infos.items()))
+
+    # A sanity check that each camera reports only one resolution value
+    for camera_name, camera_calib2 in resolution_params.items():
+        if not numpy.allclose(
+            camera_calib.setdefault("resolution", camera_calib2["resolution"]), camera_calib2["resolution"]
+        ):
+            raise ValueError(f'image_size={camera_calib2["resolution"]} mismatch {camera_calib["resolution"]}')
+
+    if args.estimate_intrinsics:
+        calibration_params, relative_poses = compute_intrinsics(object_points, detection_infos, calibration_params)
+    else:
+        relative_poses = {}
+
+    calibration_params, pattern_poses = calibox_utils.graph_optimization(
+        object_points, detection_infos, calibration_params, relative_poses=relative_poses
+    )
+
+    if args.perform_refinement:
+        for i, camera_name in enumerate(camera_names):
+            print(f'{i + 1:2d}/{len(camera_names)}: Refining "{camera_name}" intrinsics ...')
+            new_calibration_params, _ = calibox_utils.least_squares_optimization(
+                object_points,
+                detection_infos,
+                calibration_params,
+                pattern_poses,
+                camera_names=[camera_name],
+                with_extrinsics=False,
+            )
+            calibration_params[camera_name].update(new_calibration_params[camera_name])
+
+        calibration_params, pattern_poses = calibox_utils.graph_optimization(
+            object_points, detection_infos, calibration_params, relative_poses={}
+        )
+
+    save_calibration_params(calibration_params, calibration_params_path)
+
+    projection_infos = calibox_utils.project_points(object_points, detection_infos, calibration_params, pattern_poses)
+    final_report(projection_infos, detection_infos)
+    show_viz(projection_infos, calibration_params, pattern_poses, image_infos)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

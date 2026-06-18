@@ -1,0 +1,8 @@
+defaults:
+  - "default_zurich.yaml"
+
+analog_control:
+  gain: 18.5
+
+acquisition_control:
+  exposure_time: 300

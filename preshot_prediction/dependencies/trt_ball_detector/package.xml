@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>trt_ball_detector</name>
+  <version>0.0.0</version>
+  <description>Data driven generic ball detector</description>
+  <maintainer email="yamen.saraiji@sony.com">Yamen Saraiji</maintainer>
+  <license>Confidential, Copyright 2024, Sony AI, All rights reserved.</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_gtest</buildtool_depend>
+  <buildtool_depend>ament_cmake_pytest</buildtool_depend>
+  <depend >ace_setuptools</depend>
+  <depend>ament_index_cpp</depend>
+  <depend >ace_loggers</depend>
+  <depend >cuda_common</depend>
+  <depend>vision_common</depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

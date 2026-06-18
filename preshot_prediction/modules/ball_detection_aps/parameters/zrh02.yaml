@@ -1,0 +1,20 @@
+defaults:
+  - "default_zrh.yaml"
+
+cuda_device_uuids:
+  - GPU-660d18a6-1c89-bb2a-6de1-c94924d4d040
+  - GPU-27fb0140-c0e7-71de-a70f-5e5a1b64fd7c
+color_filter:
+  blur_kernel_size: 9
+  hsv_lower_boundary: [9, 120, 105]
+  hsv_upper_boundary: [29, 255, 255]
+appearance_filter:
+  min_circularity_ratio: 0.67
+  min_radius: 4
+camera_names:
+  - aps23303460
+  - aps23211061
+  - aps22200345
+  - aps23211066
+  - aps23211053
+  - aps23211060

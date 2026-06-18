@@ -1,0 +1,6 @@
+
+# position
+process_noise_pos: 0.01
+process_noise_vel: 0.1
+measurement_noise_pos: 0.04
+

@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>dot_projector</name>
+  <version>1.0.21</version>
+  <description>Package to project marked-ball points from 2D space to 3D space</description>
+  <maintainer email="hamdi.sahloul@sony.com">SonyAI-Tokyo</maintainer>
+  <license>Confidential, Copyright 2025, Sony AI, All rights reserved.</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend >base_parameters</depend>
+  <depend >ace_loggers</depend>
+  <depend >calibration</depend>
+  <depend>pybind11_vendor</depend>
+  <depend >vision_common</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

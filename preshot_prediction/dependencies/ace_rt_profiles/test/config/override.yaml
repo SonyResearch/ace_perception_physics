@@ -1,0 +1,13 @@
+# test config that overrides base
+
+defaults:
+  - base.yaml
+
+B:
+  policy: SCHED_RR
+  priority: 91
+
+C:
+  affinity: [3, 4]
+  policy: SCHED_FIFO
+  priority: 10

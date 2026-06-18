@@ -1,0 +1,19 @@
+defaults:
+  - "default_zrh.yaml"
+
+cuda_device_uuids: # Check with: nvidia-smi -L
+  - GPU-c837d208-806b-63ac-7c02-81e7cf91e06d
+color_filter:
+  blur_kernel_size: 9
+  hsv_lower_boundary: [9, 145, 70]
+  hsv_upper_boundary: [29, 255, 255]
+appearance_filter:
+  min_circularity_ratio: 0.67
+  min_radius: 3
+camera_names:
+  - aps20370539
+  - aps20510954
+  - aps20370535
+  - aps20370538
+  - aps22071850
+  - aps22138164

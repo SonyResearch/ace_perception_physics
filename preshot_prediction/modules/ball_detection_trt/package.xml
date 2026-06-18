@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ball_detection_trt</name>
+  <version>0.0.0</version>
+  <description>Data driven approach for ball detection (including white balls)</description>
+  <maintainer email="yamen.saraiji@sony.com">Yamen Saraiji</maintainer>
+  <license>Confidential, Copyright 2024, Sony AI, All rights reserved.</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend >ace_setuptools</depend>
+  <depend>ament_index_cpp</depend>
+  <depend >ace_loggers</depend>
+  <depend>ace_interfaces</depend>
+  <depend>base_parameters</depend>
+  <depend>ace_yaml</depend>
+  <depend>rclcpp</depend>
+  <depend>calibration</depend>
+  <depend>trt_ball_detector</depend>
+  <depend >ace_rt_profiles</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

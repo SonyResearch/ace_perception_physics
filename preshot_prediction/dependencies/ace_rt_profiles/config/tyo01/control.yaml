@@ -1,0 +1,125 @@
+###################
+#     CONTROL     #
+###################
+# RT profiles used during games in the control PC
+
+arena_native_ros:
+  affinity: [16, 17]
+  policy: SCHED_RR
+  priority: 89
+
+arena_realworld_musashi:
+  affinity: [3]
+  policy: SCHED_RR
+  priority: 89
+
+arena_tactics:
+  affinity: [9]
+
+collision_detection_robot_interface:
+  affinity: [15] # better single core
+
+fpga_aps:
+  affinity: [18, 19, 20]
+
+# applies both to mpc's solvers and its collision detection
+mpc_solvers_and_collision_detection:
+  affinity: [4]
+
+multi_ball_triangulation:
+  affinity: [21]
+  policy: SCHED_RR
+  priority: 89
+
+multistep_action_process:
+  affinity: [5, 6]
+
+musashi_interface_logger:
+  affinity: [8]
+  priority: 89
+
+perception_default_ros:
+  affinity: [21, 22, 23]
+  policy: SCHED_RR
+  priority: 89
+
+primitives_child:
+  affinity: [4] # 2025.05.02: tested in R15, court 03
+
+robot_interface:
+  affinity: [2]
+  policy: SCHED_RR
+  priority: 89
+
+robot_ros_wrapper:
+  affinity: [15] # this has to be different than the one for the robot_interface, otherwise the servos will get locked!
+
+trajectory_estimator:
+  affinity: [11]
+
+trajectory_estimator_mpc:
+  affinity: [4]
+
+
+###################
+#      EXTRA      #
+###################
+# RT profiles not currently used during games, but still available when needed
+# These are meant for health checks, experiments, utility scripts, outdated code, etc
+
+arena_realworld:
+  affinity: [7, 8]
+
+bullet_multiprocess_collision_detector:
+  affinity: [3]
+  policy: SCHED_RR
+  priority: 89
+
+collision_detection_calibration_dance:
+  affinity: [12]
+
+collision_detection_control_wrapper:
+  affinity: [14, 15]
+
+collision_detection_open_loop:
+  affinity: [12, 13, 14, 15]
+
+control_wrapper_logger:
+  affinity: [14, 15]
+
+default_sched:
+  policy: SCHED_OTHER
+  priority: 0
+
+ecat_check:
+  affinity: [2]
+  policy: SCHED_RR
+  priority: 89
+
+ekf_during_toss:
+  affinity: [6]
+
+gasp:
+  affinity: [4, 5, 6]
+
+gasp_dataset_gen:
+  affinity: [1, 2, 3, 4, 5, 6, 7]
+
+multiprocessed_agent_inference:
+  affinity: [1]
+
+musashi_dev_interface:
+  affinity: [3]
+  policy: SCHED_RR
+  priority: 89
+
+open_loop_pybind_interface:
+  affinity: [5]
+  policy: SCHED_RR
+  priority: 89
+
+open_loop_ruckig:
+  affinity: [5]
+
+xy_musashi_mpc_multithreaded:
+  affinity: [2, 3, 4]

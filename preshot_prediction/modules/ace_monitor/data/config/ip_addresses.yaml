@@ -1,0 +1,26 @@
+tyo01:
+  control:
+    ipaddress: 192.168.121.28
+    hostname: tyo01-control
+  GCS:
+    ipaddress: 192.168.121.5
+    hostname: tyo01-gcs
+  perception:
+    ipaddress: 192.168.121.10
+    hostname: tyo01-perception
+  scoreboard:
+    ipaddress: 192.168.121.3
+    hostname: tyo01-scoreboard
+tyo03:
+  control:
+    ipaddress: 192.168.120.4
+    hostname: tyo03-control
+  GCS:
+    ipaddress: 192.168.120.6
+    hostname: tyo03-gcs
+  perception:
+    ipaddress: 192.168.120.7
+    hostname: tyo03-perception
+  scoreboard:
+    ipaddress: 192.168.120.8
+    hostname: tyo03-scoreboard

@@ -1,0 +1,6 @@
+defaults:
+  - "default.yaml"
+voi_filter:
+  enable: true
+  min_corner: [-3.0, -2, -0.3]
+  max_corner: [3.0, 2.0, 4.0]

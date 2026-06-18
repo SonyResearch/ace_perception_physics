@@ -1,0 +1,11 @@
+defaults:
+  - "default_tokyo.yaml"
+
+chunk_data_control:
+  chunk_mode_active: true
+  exposure_time: true
+
+stream_buffer_control:
+  manual_stream_buffer_count: 1
+  stream_buffer_count_mode: 0
+  stream_buffer_handling_mode: 2

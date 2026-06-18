@@ -1,0 +1,15 @@
+__search_paths__:
+  - "${package:racket_pose_estimation}/parameters"
+
+defaults:
+  - defaults.yaml
+
+rackets:
+  Player1:
+    id: 0
+    cameras:
+      - aps20370530
+      - aps21107992
+      - aps22087079
+      - aps22106662
+      - aps22240282

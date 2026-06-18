@@ -1,0 +1,3 @@
+cuda_device_uuids:  # Check with: nvidia-smi -L
+  - GPU-660d18a6-1c89-bb2a-6de1-c94924d4d040
+  - GPU-27fb0140-c0e7-71de-a70f-5e5a1b64fd7c

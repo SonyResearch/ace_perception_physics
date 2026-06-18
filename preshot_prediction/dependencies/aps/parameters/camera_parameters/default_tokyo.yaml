@@ -1,0 +1,10 @@
+defaults:
+  - "default.yaml"
+
+acquisition_control:
+  exposure_time: 300
+analog_control:
+  gain: 24
+  balance_ratio_blue: 2.50
+  balance_ratio_red: 1.16
+  gamma: 0.819

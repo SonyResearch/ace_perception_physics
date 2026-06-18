@@ -1,0 +1,13 @@
+defaults:
+  - defaults.yaml
+  
+batch_size: 2
+device_ids: 
+  - 0
+  - 1
+
+camera_names: 
+  - aps23175982
+  - aps23175571
+  - aps22138157
+  - aps20370530

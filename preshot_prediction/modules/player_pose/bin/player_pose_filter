@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+# Confidential, Copyright 2026, Sony AI, All rights reserved.
+"""Online filtering for player pose estimations.
+It will automatically popuate the existing ros2 topics for player pose,
+creates a corrector and publisher for each topic"""
+
+import functools
+import logging
+import os
+from typing import Dict, Optional
+import ace_yaml as yaml
+from ament_index_python import get_package_share_directory
+import rclpy
+import rclpy.node
+import ace_interfaces.msg
+
+from player_pose.pose_corrector import PlayerPoseCorrector
+
+log = logging.getLogger(__name__)
+
+class PoseTopicData:
+    def __init__(self):
+        self.last_sequence_number = -1
+        self.publisher: Optional[rclpy.publisher.Publisher] = None
+        self.corrector: Optional[PlayerPoseCorrector] = None
+        self.message = ace_interfaces.msg.PlayerPose()
+        self.subscriber: Optional[rclpy.subscription.Subscription] = None
+
+class OnlineFilterNode(rclpy.node.Node):
+    """Online filtering ros node"""
+
+    def __init__(self):
+        """Initialize the online filter node."""
+        super().__init__("player_pose_filter_node")
+        self.declare_parameter("config", "defaults")
+
+        config = self.get_parameter("config").get_parameter_value().string_value
+
+        config_path = os.path.join(
+            get_package_share_directory("player_pose"), "parameters", "corrector", config + ".yaml"
+        )
+
+        with open(config_path, "r", encoding="utf8") as file_handler:
+            self.config = yaml.safe_load(file_handler)
+
+        self.topics:Dict[str, PoseTopicData] = {}
+        self.timer = self.create_timer(0.1, self._timer_callback)
+
+    def refresh_topics(self):
+        """Refresh the topics to ensure we have the latest player pose topics."""
+        for (
+            topic_name,
+            topic_types,
+        ) in self.get_topic_names_and_types():
+            if "ace_interfaces/msg/PlayerPose" in topic_types:
+                if topic_name not in self.topics and not topic_name.endswith("_filtered"):
+                    print("Adding: ", topic_name)
+                    self.topics[topic_name] = PoseTopicData()
+                    self.topics[topic_name].last_sequence_number = -1
+                    self.topics[topic_name].publisher = self.create_publisher(
+                        ace_interfaces.msg.PlayerPose, f"{topic_name}_filtered", 1
+                    )
+                    self.topics[topic_name].corrector = PlayerPoseCorrector(self.config)
+                    self.topics[topic_name].subscriber = self.create_subscription(
+                        ace_interfaces.msg.PlayerPose,
+                        f"{topic_name}",
+                        functools.partial(self.on_player_pose, topic_name),
+                        1,
+                    )
+
+    def on_player_pose(self, topic_name, message: ace_interfaces.msg.PlayerPose):
+        """Callback for player pose messages."""
+        topic:PoseTopicData = self.topics[topic_name]
+    
+        delta_seq = message.header.sequence_number - topic.last_sequence_number
+        if topic.last_sequence_number < 0:
+            delta_seq = 0
+        topic.last_sequence_number = message.header.sequence_number
+
+        delta_time = delta_seq * 1e-3
+
+        topic.corrector.predict(delta_time)
+        topic.corrector.correct_pose(message)
+
+
+        topic.publisher.publish(message)
+
+    def _timer_callback(self):
+        """Timer callback to refresh topics and update correctors."""
+        self.refresh_topics()
+
+
+def main(args=None):
+    """run as standalone node"""
+    rclpy.init(args=args)
+    node = OnlineFilterNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    except SystemExit:
+        pass
+    finally:
+        log.info("Done")
+    node.destroy_node()
+
+
+if __name__ == "__main__":
+    main()

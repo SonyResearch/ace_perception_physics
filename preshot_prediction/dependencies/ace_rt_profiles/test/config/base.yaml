@@ -1,0 +1,13 @@
+# basic test config
+
+A:
+  affinity: [0]
+  policy: SCHED_FIFO
+  priority: 89
+
+B:
+  affinity: [1]
+  policy: SCHED_OTHER
+
+C:
+  affinity: [2]

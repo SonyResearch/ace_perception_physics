@@ -1,0 +1,470 @@
+#!/usr/bin/env python3
+# Confidential, Copyright 2025, Sony AI, All rights reserved.
+
+"""Measure Table Flatness using perception system.
+Using a pole with ball attached to the end, swipe across the table surface to assess its surface flatness."""
+
+import argparse
+import os
+import math
+from datetime import datetime
+from enum import Enum
+
+import cv2
+
+import numpy as np
+import scipy
+import scipy.stats
+import rclpy
+import rclpy.qos
+from python_helpers.keyboard_input import KBHit
+from rclpy.node import Node
+
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import ace_interfaces.msg
+
+
+class SampledHeightMap:
+    """Class to store sampled height map data."""
+
+    TABLE_WIDTH = 1525  # mm
+    TABLE_LENGTH = 2740  # mm
+    TABLE_EDGE = 5  # mm table edge limit
+    MIN_SAMPLES = 5  # minimum number of samples to report a measurement
+
+    class Type(Enum):
+        """Type of height map."""
+
+        TABLE_HEIGHT = "height_map"
+        DEVIATION_MAP = "deviation_map"
+        SAMPLES_COUNTER = "samples_counter"
+
+    def __init__(self, sampling_resolution, map_type: Type = Type.TABLE_HEIGHT):
+        self.map_type = map_type
+        if map_type == SampledHeightMap.Type.TABLE_HEIGHT:
+            self.cmap = "jet"
+        elif map_type == SampledHeightMap.Type.DEVIATION_MAP:
+            self.cmap = "hot"
+        elif map_type == SampledHeightMap.Type.SAMPLES_COUNTER:
+            self.cmap = "gray"
+        else:
+            raise ValueError("Invalid map type")
+        self.sampling_resolution = sampling_resolution
+        self.samples_grid_x = math.ceil(self.TABLE_LENGTH / sampling_resolution)
+        self.samples_grid_y = math.ceil(self.TABLE_WIDTH / sampling_resolution)
+
+        self.height_data = None
+        self.height_map = None
+        self.map_image = None
+        self.combined_img = None
+        self.scaler = 1
+        self.reset()
+
+    def reset(self):
+        """Reset sampled data"""
+        self.height_data = None
+        self.height_map = None
+        self.samples_grid = [[] for _ in range(self.samples_grid_x)]
+        for i in range(self.samples_grid_x):
+            self.samples_grid[i] = [[] for _ in range(self.samples_grid_y)]
+
+    def add_sample(self, pos):
+        """Add a sample to the height map"""
+        sampled_position_x = int((pos[0] + self.TABLE_LENGTH / 2) / self.sampling_resolution)
+        sampled_position_y = int((pos[1] + self.TABLE_WIDTH / 2) / self.sampling_resolution)
+        self.samples_grid[sampled_position_x][sampled_position_y].append(pos)
+
+    def update_height_map(self, min_height, max_height):
+        """Update height map and print statistics"""
+        height_map = np.full((self.samples_grid_x, self.samples_grid_y), np.nan)
+        for i in range(self.samples_grid_x):
+            for j in range(self.samples_grid_y):
+                if len(self.samples_grid[i][j]) == 0:
+                    continue
+                arr = np.array(self.samples_grid[i][j])[:, 2]
+                valid_indicies = (arr > min_height) & (arr < max_height)
+                z_values = arr[valid_indicies]
+                if len(z_values) > self.MIN_SAMPLES:
+                    if self.map_type == SampledHeightMap.Type.SAMPLES_COUNTER:
+                        height_map[i, j] = min(100, len(z_values))
+                    else:
+                        median = np.median(z_values)
+                        if self.map_type == SampledHeightMap.Type.TABLE_HEIGHT:
+                            height_map[i, j] = median
+                        elif self.map_type == SampledHeightMap.Type.DEVIATION_MAP:
+                            absolute_deviations = scipy.stats.median_abs_deviation(z_values)
+                            height_map[i, j] = absolute_deviations
+
+        valid_heights = height_map[~np.isnan(height_map)]
+        if len(valid_heights) == 0:
+            print("No valid height samples collected.")
+            return
+
+        self.height_data = height_map
+
+        self.plot_map()
+
+    @staticmethod
+    def flip_point(point, width):
+        """Flip point for image coordinates"""
+        return np.array([width - point[0], point[1]])
+
+    def plot_lines(self, image):
+        """Plot table boundary lines on height map image"""
+        points = [
+            np.array([-self.TABLE_LENGTH / 2, -self.TABLE_WIDTH / 2]),
+            np.array([self.TABLE_LENGTH / 2, -self.TABLE_WIDTH / 2]),
+            np.array([self.TABLE_LENGTH / 2, self.TABLE_WIDTH / 2]),
+            np.array([-self.TABLE_LENGTH / 2, self.TABLE_WIDTH / 2]),
+            np.array([0, -self.TABLE_WIDTH / 2]),
+            np.array([0, self.TABLE_WIDTH / 2]),
+            np.array([-self.TABLE_LENGTH / 2, 0]),
+            np.array([self.TABLE_LENGTH / 2, 0]),
+        ]
+
+        height = image.shape[0]
+        width = image.shape[1]
+        for i, point in enumerate(points):
+            points[i] = point * self.scaler / self.sampling_resolution
+            points[i][0] += width / 2
+            points[i][1] += height / 2
+            points[i] = points[i].astype(int)
+
+        indicies = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (6, 7)]
+        for i in indicies:
+            point1 = points[i[0]]
+            point2 = points[i[1]]
+            cv2.line(image, pt1=point1, pt2=point2, color=(1, 0, 0), thickness=2)
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        point = [points[0][0] + 70, points[0][1] + 30]
+        cv2.putText(image, "-X,-Y", SampledHeightMap.flip_point(point, width), font, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+        point = [points[1][0] - 30, points[1][1] + 30]
+        cv2.putText(image, "+X,-Y", SampledHeightMap.flip_point(point, width), font, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+        point = [points[2][0] - 30, points[2][1] - 30]
+        cv2.putText(image, "+X,+Y", SampledHeightMap.flip_point(point, width), font, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
+    def plot_map(self):
+        """Plot height map"""
+        height_map = self.height_data.transpose()
+        height_map = cv2.flip(height_map, 1)
+        # Normalize height map for color mapping
+        val = max(-np.nanmin(height_map), np.nanmax(height_map))
+        min_val = -val  # np.nanmin(height_map) #
+        max_val = +val  # np.nanmax(height_map) #
+        norm_height_map = (height_map - min_val) / (max_val - min_val)
+        norm_height_map = np.nan_to_num(norm_height_map)
+        # Apply colormap (e.g., jet)
+        cmap = plt.cm.get_cmap(self.cmap)
+        cnorm = mcolors.Normalize(vmin=min_val, vmax=max_val)
+        color_map_img = cmap(cnorm(height_map))[..., [2, 1, 0]]
+        color_map_img[np.isnan(height_map)] = (0, 0, 0)
+        target_height = 240
+
+        self.scaler = math.ceil(target_height / self.samples_grid_y)
+
+        color_map_img = cv2.resize(
+            color_map_img,
+            (int(self.samples_grid_x * self.scaler), int(self.samples_grid_y * self.scaler)),
+            interpolation=cv2.INTER_NEAREST,
+        )
+        self.plot_lines(color_map_img)
+
+        # Create legend
+        legend_height = color_map_img.shape[0]
+        legend_width = 100
+        legend = np.zeros((legend_height, legend_width, 3), dtype=np.uint8)
+        min_val = np.nanmin(height_map)
+        max_val = np.nanmax(height_map)
+        data_map = min_val + (max_val - min_val) * np.array(
+            [i / legend_height for i in range(legend_height - 1, -1, -1)]
+        ).reshape((-1, 1))
+        legend = (cmap(cnorm(data_map))[..., [2, 1, 0]]).astype(color_map_img.dtype)
+        legend = np.repeat(legend, (legend_width), axis=1)
+
+        # Add text labels for min and max height
+        if self.map_type == SampledHeightMap.Type.SAMPLES_COUNTER:
+            min_label = f"{int(min_val)}"
+            max_label = f"{int(max_val)}"
+        else:
+            min_label = f"{min_val:.1f}mm"
+            max_label = f"{max_val:.1f}mm"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(legend, min_label, (5, legend_height - 10), font, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+        cv2.putText(legend, max_label, (5, 20), font, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
+        self.map_image = color_map_img
+        # Concatenate legend to right side of color_map_img
+        combined_img = np.hstack((color_map_img, legend))
+
+        cv2.putText(combined_img, self.map_type.value, (5, 20), font, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+
+        self.height_map = combined_img
+
+    def get_image(self):
+        """Get height map with legend image"""
+        return self.height_map
+
+    def get_map_image(self):
+        """Get height map image"""
+        return self.map_image
+
+    def save_height_map_image(self):
+        """Save height map image to file"""
+        if self.height_map is None:
+            return
+        cv2.imwrite(f"{self.map_type.value}.jpg", (255 * self.height_map).astype(np.uint8))
+
+    def export(self, path, min_height, max_height):
+        """Export height map data to file"""
+        self.update_height_map(min_height, max_height)
+        cv2.imwrite(os.path.join(path, "height_map.png"), (255 * self.height_map).astype(np.uint8))
+        np.save(os.path.join(path, "height_data.npy"), self.height_data)
+
+
+class MeasureTableFlatnessNode(Node):
+    """Node to measure table flatness using wand calibration data."""
+
+    BALL_RADIUS = 20  # mm
+
+    def __init__(self, sampling_resolution=100, table_height_tolerance=50):
+        super().__init__("measure_table_flatness")
+
+        self.sampling_resolution = sampling_resolution
+        self.table_height_tolerance = table_height_tolerance
+
+        self.min_height = -table_height_tolerance
+        self.max_height = table_height_tolerance
+        self.is_done = False
+
+        qos_profile = rclpy.qos.QoSProfile(depth=1)
+        self.ball_subscriber = self.create_subscription(
+            ace_interfaces.msg.PointsWithCovariance,
+            "/sensors/ball_triangulation/points",
+            self.on_ball_pose_callback,
+            qos_profile=qos_profile,
+        )
+
+        self.keyboard = KBHit()
+        self.samples = []
+        self.samplers = {}
+        self.samplers["height"] = SampledHeightMap(self.sampling_resolution, SampledHeightMap.Type.TABLE_HEIGHT)
+        self.samplers["deviation"] = SampledHeightMap(self.sampling_resolution, SampledHeightMap.Type.DEVIATION_MAP)
+        self.samplers["count"] = SampledHeightMap(self.sampling_resolution, SampledHeightMap.Type.SAMPLES_COUNTER)
+        self.combined_img = None
+        self.reset()
+        self.current_points = []
+
+    def reset(self):
+        """Reset samples and images"""
+        for _, sampler in self.samplers.items():
+            sampler.reset()
+        self.current_samples_count = 0
+        self.combined_img = None
+        self.samples.clear()
+
+    def update_image(self):
+        """Update combined image from samplers"""
+        stacked_images = []
+        for _, sampler in self.samplers.items():
+            img = sampler.get_image()
+            if img is not None:
+                stacked_images.append(img)
+
+        if stacked_images:
+            self.combined_img = np.vstack(stacked_images)
+
+    def draw(self):
+        """Draw combined image"""
+        if self.combined_img is None:
+            return
+        image = self.combined_img.copy()
+        height_image = self.samplers["height"].get_map_image()
+        width, height = height_image.shape[1], height_image.shape[0]
+
+        # realtime plotting of current points
+        for point in self.current_points:
+            x = point.position.x * 1e3 + SampledHeightMap.TABLE_LENGTH / 2  # pylint: disable=invalid-name
+            y = point.position.y * 1e3 + SampledHeightMap.TABLE_WIDTH / 2  # pylint: disable=invalid-name
+            x = int(width - (x / (SampledHeightMap.TABLE_LENGTH)) * width)  # pylint: disable=invalid-name
+            y = int((y / (SampledHeightMap.TABLE_WIDTH)) * height)  # pylint: disable=invalid-name
+            if x < 0 or x >= width or y < 0 or y >= height:
+                continue
+            cv2.circle(image, (x, y), 5, (0, 255, 0), -1)
+
+        cv2.imshow("Table Flatness", image)
+        key = cv2.waitKey(1)
+        if key != -1:
+            self.process_key(key=chr(key & 0xFF))
+
+    def done(self):
+        """Check if done"""
+        return self.is_done
+
+    def destroy_node(self):
+        """destroy"""
+        self.keyboard.set_normal_term()
+        self.ball_subscriber = None
+        super().destroy_node()
+
+    def add_sample(self, pos, update_image=True):
+        """Add a sample if within table bounds and height tolerance"""
+        if (
+            abs(pos[0]) < (SampledHeightMap.TABLE_LENGTH / 2 - SampledHeightMap.TABLE_EDGE)
+            and abs(pos[1]) < (SampledHeightMap.TABLE_WIDTH / 2 - SampledHeightMap.TABLE_EDGE)
+            and abs(pos[2]) < self.table_height_tolerance
+        ):
+            self.samples.append(pos)
+            for _, sampler in self.samplers.items():
+                sampler.add_sample(pos)
+            self.current_samples_count += 1
+            if self.current_samples_count % 200 == 0 and update_image:
+                self.update_height_map()
+
+    def on_ball_pose_callback(self, msg):
+        """ROS callback for ball pose"""
+        try:
+            self.current_points = msg.points
+            for ball in msg.points:
+                pos = np.array([ball.position.x, ball.position.y, ball.position.z]) * 1e3  # to mm
+                pos[2] -= self.BALL_RADIUS
+                self.add_sample(pos)
+        except Exception as err:  # pylint: disable=broad-except
+            print(err)
+
+    def update(self):
+        """update"""
+        if self.keyboard.kbhit():
+            key = self.keyboard.getch()
+            try:
+                self.process_key(key)
+            except Exception as err:  # pylint: disable = broad-except
+                print(err)
+
+    def update_height_map(self):
+        """Update height map for all samplers"""
+        for _, sampler in self.samplers.items():
+            sampler.update_height_map(self.min_height, self.max_height)
+        self.update_image()
+
+    def export(self):
+        """Export height map data to folder using today's date under folder 'table_height_maps'."""
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_root = os.path.join("table_height_maps", f"{timestamp}")
+        os.makedirs(export_root, exist_ok=True)
+        for sampler_name, sampler in self.samplers.items():
+            export_path = os.path.join(export_root, sampler_name)
+            os.makedirs(export_path, exist_ok=True)
+            sampler.export(export_path, self.min_height, self.max_height)
+        np.save(os.path.join(export_root, "samples.npy"), self.samples)
+        print(f"Exported height maps to {export_root}")
+
+    def process_key(self, key):
+        """Process keyboard keys"""
+        match key:
+            case "q":
+                self.is_done = True
+            case "u":
+                self.update_height_map()
+            case "1":
+                self.min_height -= 1
+                print(f"Min Height Tolerance: {self.min_height} mm")
+                self.update_height_map()
+            case "2":
+                if self.min_height >= self.max_height - 1:
+                    print("Min Height cannot be >= Max Height")
+                    return
+                self.min_height += 1
+                print(f"Min Height Tolerance: {self.min_height} mm")
+                self.update_height_map()
+            case "3":
+                if self.min_height >= self.max_height - 1:
+                    print("Min Height cannot be >= Max Height")
+                    return
+                self.max_height -= 1
+                print(f"Max Height Tolerance: {self.max_height} mm")
+                self.update_height_map()
+            case "4":
+                self.max_height += 1
+                print(f"Max Height Tolerance: {self.max_height} mm")
+                self.update_height_map()
+            case "r":
+                print("Resetting Samples")
+                self.reset()
+
+            case "e":
+                print("Exporting")
+                self.export()
+
+
+def process_recorded_samples(path, sampling_resolution, table_height_tolerance):
+    """Process recorded samples from file"""
+    samples = np.load(path, allow_pickle=True)
+    rclpy.init()
+    node = MeasureTableFlatnessNode(
+        sampling_resolution=sampling_resolution, table_height_tolerance=table_height_tolerance
+    )
+    for pos in samples:
+        node.add_sample(pos, False)
+    node.update_height_map()
+    node.draw()
+    while rclpy.ok() and not node.done():
+        rclpy.spin_once(node, timeout_sec=0.1)
+        node.update()
+        node.draw()
+    node.export()
+    cv2.waitKey(0)
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+def main():
+    """Main function"""
+    parser = argparse.ArgumentParser(description="Measure Table Flatness using triangulation data")
+    parser.add_argument(
+        "--sampling_resolution",
+        type=float,
+        default=100,
+        help="Sampling resolution in millimeters (default: 100mm)",
+    )
+    parser.add_argument(
+        "--height_tolerance",
+        type=float,
+        default=20,
+        help="Max ball height in millimeters (default: 20mm)",
+    )
+    parser.add_argument(
+        "--reprocess_samples",
+        type=str,
+        default="",
+        help="Reprocess recorded samples from file",
+    )
+    args = parser.parse_args()
+    if args.reprocess_samples is not None and args.reprocess_samples != "":
+        process_recorded_samples(
+            path=args.reprocess_samples,
+            sampling_resolution=args.sampling_resolution,
+            table_height_tolerance=args.height_tolerance,
+        )
+        return
+
+    rclpy.init()
+    node = MeasureTableFlatnessNode(
+        sampling_resolution=args.sampling_resolution, table_height_tolerance=args.height_tolerance
+    )
+    try:
+        while rclpy.ok() and not node.done():
+            rclpy.spin_once(node, timeout_sec=0.1)
+            node.update()
+            node.draw()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

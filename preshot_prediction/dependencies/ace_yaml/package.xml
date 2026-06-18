@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ace_yaml</name>
+  <version>0.1.27</version>
+  <description>Provides common YAML functionalities</description>
+  <maintainer email="hamdi.sahloul@sony.com">SonyAI-Tokyo</maintainer>
+  <license>Confidential, Copyright 2025, Sony AI, All rights reserved.</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_gtest</buildtool_depend>
+  <buildtool_depend>ament_cmake_pytest</buildtool_depend>
+  <depend>ament_index_cpp</depend>
+  <depend >ace_setuptools</depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

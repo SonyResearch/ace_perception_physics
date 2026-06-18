@@ -1,0 +1,3 @@
+defaults:
+- tyo01.yaml
+- tyo01_player.yaml

@@ -1,0 +1,384 @@
+#!/usr/bin/env python3
+# Confidential, Copyright 2024, Sony AI, All rights reserved.
+"""
+A real-time images visualizer for ROS2 ImageData topics
+"""
+
+# system
+import argparse
+import itertools
+import subprocess
+import time
+
+# opencv
+import cv2
+
+# math
+import numpy as np
+
+# ros
+import rclpy
+import rclpy.qos
+import std_msgs.msg
+from ament_index_python.packages import get_package_share_directory
+
+# camera
+from aps import python_module as aps
+from calibration import python_module as calibration
+from rclpy.node import Node
+
+
+def parse_args():
+    """
+    Provide script-specific arguments.
+
+    @return: Parsed argument object
+    """
+
+    parser = argparse.ArgumentParser(description="Show camera images")
+    parser.add_argument(
+        "--alpha",
+        type=float,
+        default=0.0,
+        help="Decay factor to chronically blend images (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--beta",
+        type=float,
+        default=None,
+        help="New-observation factor to chronically blend images (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--group",
+        action="store_true",
+        default=False,
+        help="Group images having the same camera name (useful in combination with alpha & beta parameters)",
+    )
+    parser.add_argument(
+        "--topic-filter",
+        type=str,
+        default="",
+        help="A string for partial matching with topic names (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--max-scale",
+        type=float,
+        default=16.0,
+        help="A float for controlling the maximum upscaling factor of the images (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--resolution",
+        type=str,
+        default=None,
+        help="A screen resolution string in the format of <width>x<height> (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Lab specific configuration, e.g. zrh00, zrh01, tyo02.",
+    )
+
+    return parser.parse_args()
+
+
+class Context:
+    """
+    This class manages the context of show camera utility tool, and manages the population of image topics
+    """
+
+    def __init__(self, topic_filter, group, resolution, config=None):
+        self.topic_filter = topic_filter
+        self.group = group
+        self.resolution = resolution
+        self.dummy_node = Node("aps_show_camera_images")
+        self.topics = []
+        time.sleep(1)  # Wait to populate topics
+        # Set up subscriber.
+        self.sub = aps.ZeroCopySubscriber()  # pylint: disable=c-extension-no-member
+        self.subed_topics = []
+        self.num_cams = 0
+        self.cam_names = []
+        self.cam_names_to_show = []
+        self.num_cams_to_show = 0
+        self.cam_to_show_index = []
+        self.handles = []
+        self.window_width = 0
+        self.window_height = 0
+        self.rel_screen_size = 0.9
+        self.window_init = False
+        self.rets = []
+        self.frame_ids = []
+        self.encodings = []
+        self.imgs_raw = []
+        self.imgs = []
+
+        # Table projection
+        self.config = config
+        self.table_points_3d = []
+        self.table_points_2d = None
+
+        table_dims = [1.37, 0.7625]
+        table_corners = itertools.product([-table_dims[0], table_dims[0]], [-table_dims[1], table_dims[1]])
+        table_corners = np.insert(list(table_corners), 2, values=0, axis=1)[[0, 1, 3, 2]]
+        step_size = 0.05  # in meter
+        for idx, curr_corner in enumerate(table_corners):
+            next_corner = table_corners[(idx + 1) % len(table_corners)]
+            steps = np.linspace(0, 1, int(np.linalg.norm(next_corner - curr_corner) / step_size))[::-1, np.newaxis]
+            self.table_points_3d.extend(curr_corner * steps + next_corner * (1 - steps))
+
+        qos_persistent = rclpy.qos.QoSProfile(depth=1)
+        qos_persistent.reliability = rclpy.qos.QoSReliabilityPolicy.RELIABLE
+        qos_persistent.durability = rclpy.qos.QoSDurabilityPolicy.TRANSIENT_LOCAL
+        self.dummy_node.create_subscription(
+            std_msgs.msg.Bool,
+            "/sensors/calibration/reload_state",
+            self._reload_callback,
+            qos_persistent,
+        )
+
+    def _reload_callback(self, msg):
+        if msg.data is False:
+            return
+        self.update()
+
+    def destroy(self):
+        """
+        Destroy the object
+        """
+        self.dummy_node.destroy_node()
+
+    def update(self):
+        """
+        Update is called when new topics were populated
+        """
+        # Extract camera names.
+        self.cam_names = []
+        for topic in self.topics:
+            cam_name = [
+                segment for segment in topic.split("/") if segment.startswith("aps") or segment.startswith("evs")
+            ]
+            if cam_name:
+                self.cam_names.append(cam_name[0])
+        self.num_cams = len(self.cam_names)
+
+        # To group images having the same camera name?
+        if self.group:
+            self.cam_names_to_show = sorted(set(self.cam_names))
+            self.num_cams_to_show = len(self.cam_names_to_show)
+            self.cam_to_show_index = [self.cam_names_to_show.index(cam_name) for cam_name in self.cam_names]
+        else:
+            self.cam_names_to_show = self.cam_names
+            self.num_cams_to_show = self.num_cams
+            self.cam_to_show_index = range(self.num_cams)
+
+        for cam_name in self.cam_names:
+            for topic in self.topics:
+                if "aps" in topic or "evs" in topic:
+                    if topic not in self.subed_topics:
+                        self.handles.append(self.sub.add_subscription(topic))
+                        self.subed_topics.append(topic)
+
+        # Prepare window.
+        if self.resolution is None:
+            cmd = ["xrandr"]
+            cmd2 = ["grep", "*"]
+            with subprocess.Popen(cmd, stdout=subprocess.PIPE) as p_xrandr:
+                with subprocess.Popen(cmd2, stdin=p_xrandr.stdout, stdout=subprocess.PIPE) as p_grep:
+                    p_xrandr.stdout.close()
+                    resolution_string, _ = p_grep.communicate()
+            self.resolution = resolution_string.split()[0].decode("utf-8")
+
+        self.window_width, self.window_height = map(int, self.resolution.split("x"))
+
+        self.window_width = int(self.rel_screen_size * self.window_width)
+        self.window_height = int(self.rel_screen_size * self.window_height)
+        self.window_init = False
+
+        self.rets = [None] * self.num_cams
+        self.frame_ids = [None] * self.num_cams
+        self.encodings = [None] * self.num_cams
+        self.imgs_raw = [None] * self.num_cams
+        self.imgs = [None] * self.num_cams
+
+        # Table projection
+        if self.config is not None:
+            calib_params = calibration.CameraCalibrationParameters()
+            calib_share_path = get_package_share_directory("calibration")
+            calib_path = f"{calib_share_path}/parameters/camera_calibration/{self.config}.yaml"
+            assert calib_params.initialize(calib_path)
+
+            self.table_points_2d = {}
+            for camera_name in calib_params.cameras:
+                camera = calib_params.cameras[camera_name]
+                self.table_points_2d[camera_name] = camera.project_points(self.table_points_3d)[0]
+
+    def refresh_topics(self):
+        """
+        check for any new image topics available, and update the context if necessary
+        """
+        changed = False
+        # populate topics
+        for topic_name, topic_types in self.dummy_node.get_topic_names_and_types():
+            if "ace_interfaces/msg/ImageData" in topic_types and self.topic_filter in topic_name:
+                if topic_name not in self.topics:
+                    print("Topic discovered: " + topic_name)
+                    changed = True
+                    self.topics.append(topic_name)
+
+        if changed:
+            # update topics
+            self.update()
+
+
+if __name__ == "__main__":
+    # Get all topics.
+    rclpy.init()
+    args = parse_args()
+    if args.beta is None:
+        args.beta = 1.0 - args.alpha
+
+    _context = Context(args.topic_filter, args.group, args.resolution, args.config)
+    _context.update()
+
+    # Start main loop.
+    cv2.namedWindow("APS Camera Images")
+    SHOULD_EXIT = False
+    while not SHOULD_EXIT:
+        rclpy.spin_once(_context.dummy_node, timeout_sec=0)
+        _context.refresh_topics()
+        # Get latest image from each camera
+        for i in range(_context.num_cams):
+            (
+                _context.rets[i],
+                _context.frame_ids[i],
+                _context.encodings[i],
+                _context.imgs_raw[i],
+            ) = _context.sub.get_latest_message(_context.handles[i])
+
+        # Compute scaling and arrangement of images
+        if not _context.window_init:
+            if np.any(_context.rets):
+                for i in range(_context.num_cams):
+                    if _context.rets[i]:
+                        break
+            else:
+                continue
+            _context.window_init = True
+
+            img_height = _context.imgs_raw[i].shape[0]
+            img_width = _context.imgs_raw[i].shape[1]
+
+            ROWS = 1
+            COLS = 1
+            width = img_width
+            height = img_height
+            scaling: float = np.min([_context.window_height / height, _context.window_width / width, args.max_scale])
+            width *= scaling
+            height *= scaling
+
+            NUM_IMAGES = 1
+            while NUM_IMAGES != _context.num_cams_to_show:
+                if NUM_IMAGES == ROWS * COLS:
+                    # Add new row or column
+                    if (width + scaling * img_width) / _context.window_width < (
+                        height + scaling * img_height
+                    ) / _context.window_height:
+                        COLS += 1
+                        width += scaling * img_width
+
+                    else:
+                        ROWS += 1
+                        height += scaling * img_height
+
+                    # Adjust scaling
+                    scaling_adjustment: float = np.min(
+                        [_context.window_height / height, _context.window_width / width, args.max_scale]
+                    )
+                    scaling *= scaling_adjustment
+                    width *= scaling_adjustment
+                    height *= scaling_adjustment
+
+                NUM_IMAGES += 1
+
+            # Compute new image size.
+            img_dummy = np.zeros((img_height, img_width), dtype=np.uint8)
+            img_dummy = cv2.resize(img_dummy, (0, 0), fx=scaling, fy=scaling)
+
+            img_height = img_dummy.shape[0]
+            img_width = img_dummy.shape[1]
+            img_combined = np.zeros((ROWS * img_height, COLS * img_width, 3), dtype=np.uint8)
+            img_combined_height = ROWS * img_height
+            img_combined_width = COLS * img_width
+
+        # Reset with each loop
+        img_combined[:] = 0
+
+        # Process all images.
+        for i in range(_context.num_cams):
+            if _context.rets[i]:
+                if _context.encodings[i] == "bayer_rggb8":
+                    _context.imgs[i] = cv2.cvtColor(_context.imgs_raw[i], cv2.COLOR_BayerBG2BGR)
+                elif _context.encodings[i] == "mono8":
+                    _context.imgs[i] = cv2.cvtColor(_context.imgs_raw[i], cv2.COLOR_GRAY2BGR)
+                else:
+                    print("Received unknown encoding: ", _context.encodings[i])
+
+                show_index = _context.cam_to_show_index[i]
+                _m = show_index // COLS
+                _n = show_index % COLS
+
+                y_start, y_end = _m * img_height, (_m + 1) * img_height
+                x_start, x_end = _n * img_width, (_n + 1) * img_width
+                img_roi = img_combined[y_start:y_end, x_start:x_end]
+
+                img_resized = cv2.resize(_context.imgs[i], (0, 0), fx=scaling, fy=scaling)
+                img_roi[:] = np.clip(args.alpha * img_roi + args.beta * img_resized, 0, 255).astype(
+                    np.uint8
+                )  # Blend images
+                cv2.putText(
+                    img_roi,
+                    _context.cam_names[i],
+                    (10, 15),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (85, 196, 196),
+                    1,
+                    cv2.LINE_AA,
+                )
+                cv2.putText(
+                    img_roi,
+                    "frame_id: " + str(_context.frame_ids[i]),
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (85, 196, 196),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+                if _context.table_points_2d is not None:
+                    points_2d = scaling * _context.table_points_2d[_context.cam_names[i]]
+                    cv2.polylines(img_roi, [points_2d.astype(np.int32)], True, (0, 0, 255), 1, cv2.LINE_AA)
+
+        cv2.putText(
+            img_combined,
+            'Press "q" to exit.',
+            (img_combined_width - 160, img_combined_height - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (85, 196, 196),
+            1,
+            cv2.LINE_AA,
+        )
+
+        #  Show images.
+        cv2.imshow("APS Camera Images", img_combined)
+        if cv2.waitKey(20) == ord("q"):
+            SHOULD_EXIT = True
+
+        for _h in _context.handles:
+            _context.sub.release_latest_message(_h)
+
+    _context.destroy()
+    cv2.destroyAllWindows()

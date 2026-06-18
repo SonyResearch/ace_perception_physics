@@ -1,0 +1,29 @@
+defaults:
+  - defaults.yaml
+
+extractor:
+  device_index: 0
+  workers_count: 3
+  rt_profile: racket_pose_extractor
+
+fitter:
+  max_error: 5e-2
+  max_iterations: 1600
+  initial_rate: 1e-2
+  min_axis_length: 30
+
+cameras: # none, CW/CCW/180/auto
+    aps22138164:
+      rotate: none
+    aps20510954:
+      rotate: none
+    aps20370539:
+      rotate: none
+
+rackets:
+  Player1:
+    id: 0
+    cameras:
+    - aps22138164
+    - aps20510954
+    - aps20370539

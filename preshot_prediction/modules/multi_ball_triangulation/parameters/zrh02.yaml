@@ -1,0 +1,11 @@
+defaults:
+  - "default.yaml"
+
+camera_buffer_length: 3
+triangulation:
+  geometric_error_threshold: 0.95
+  radius_error_threshold: 0.3
+voi_filter:
+  enable: true
+  min_corner: [-3.0, -2.0, -0.3]
+  max_corner: [3.0, 2.0, 4.0]

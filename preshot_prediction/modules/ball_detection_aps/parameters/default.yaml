@@ -1,0 +1,20 @@
+motion_filter:
+  enable: false
+  delay: 0.05
+  lower_boundary: 15
+  upper_boundary: 255
+border_filter:
+  enable: false
+  plane_depth: 1.5
+  margin_size: 0.03
+markers:
+  enable: true
+  min_circularity_ratio: 0.15
+  min_radius_ratio: 0.02
+  max_radius_ratio: 0.4
+  cone_angle_threshold: 75
+  opencv:
+    adaptive_threshold_power: 0.707
+    adaptive_threshold_ratio: 2.8
+
+rt_profile: ball_detection_aps

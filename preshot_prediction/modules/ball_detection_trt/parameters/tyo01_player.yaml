@@ -1,0 +1,16 @@
+defaults:
+  - defaults.yaml
+  
+batch_size: 2
+sampling: 1
+device_ids: 
+  - 0
+  - 1
+
+minimum_confidence: 0.15
+
+camera_names:
+  - aps21115382
+  - aps22138156
+  - aps21115385
+  - aps23287107

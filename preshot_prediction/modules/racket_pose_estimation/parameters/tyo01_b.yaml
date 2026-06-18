@@ -1,0 +1,13 @@
+defaults:
+  - tyo01.yaml
+
+rackets:
+  Player1:
+    id: 1
+    cameras:
+      - aps22087079
+      - aps21107992
+      - aps22106662
+      # behind player
+      - aps20370530
+      - aps22240282

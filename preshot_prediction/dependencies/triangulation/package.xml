@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>triangulation</name>
+  <version>2.0.54</version>
+  <description>Package to triangulate 3D points from sorted/unsorted point observations in multiple camera frames.</description>
+  <maintainer email="dario.brescianini@sony.com">SonyAI-Zurich</maintainer>
+  <license>Confidential, Copyright 2025, Sony AI, All rights reserved.</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend >ace_setuptools</depend>
+  <depend >base_parameters</depend>
+  <depend >ace_loggers</depend>
+  <depend >ace_yaml</depend>
+  <depend >calibration</depend>
+  <depend>pybind11_vendor</depend>
+  <depend >rosbag_dataloaders</depend>
+
+  <!-- TODO transitive dependency from ace_loggers -->
+  <depend>ace_rt_profiles</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

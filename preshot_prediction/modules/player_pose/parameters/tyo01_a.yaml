@@ -1,0 +1,25 @@
+defaults:
+  - tyo01.yaml
+
+cameras: # none, CW/CCW/180/auto
+    aps22071845:
+      rotate: none
+    aps21115383:
+      rotate: none
+    aps20501495:
+      rotate: none
+    aps21107993:
+      rotate: none
+    aps22240292:
+      rotate: none
+
+players:
+  Player1:
+    id: 0
+    cameras:
+    - aps22071845
+    - aps21115383
+    - aps20501495
+    # behind player
+    - aps21107993
+    - aps22240292

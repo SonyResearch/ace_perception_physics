@@ -1,0 +1,25 @@
+<?xml version="1.0" ?>
+<robot name="table">
+  <link concave="yes" name="baseLink">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="table.obj"/>
+      </geometry>
+    </visual>
+    <!-- Remove collision to prevent from being used for simulation (flipped normals, random bounce at edges, wrong height)
+    <collision concave="yes">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="table.stl"/>
+      </geometry>
+    </collision>
+    -->
+    <inertial>
+      <!-- Static table -->
+      <mass value="0"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0"/>
+    </inertial>
+  </link>
+</robot>

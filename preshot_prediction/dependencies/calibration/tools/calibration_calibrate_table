@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+# Confidential, Copyright 2026, Sony AI, All rights reserved.
+"""
+Calibrate table coordinates using ball placed on the corners
+inside models folder, you can print BallBoardMount*.stl file and glue the ball into its slot
+
+"""
+
+import argparse
+import sys
+
+import ace_yaml as yaml
+import numpy as np
+import rclpy
+import rclpy.qos
+import std_msgs.msg
+from ament_index_python.packages import get_package_share_directory
+from calibration import calibrator_utils
+from python_helpers.keyboard_input import KBHit
+from rclpy.node import Node
+
+import ace_interfaces.msg
+
+
+class Context:
+    """Helper class"""
+
+    def __init__(self, args):
+        """Init"""
+        rclpy.init()
+        self.ros_node = Node("calibration_calibrate_table")
+        self.is_done = False
+        self.calib_points = []
+        self.keyboard = KBHit()
+        self.ball_pose = None
+        self.config = args.config
+        self.offset = np.array([args.x_offset, args.y_offset, args.z_offset])
+        self.table_width = args.table_width
+        self.table_length = args.table_length
+        self.wo_matrix = None
+        self.dry_run = args.dry_run
+
+        qos_profile = rclpy.qos.QoSProfile(depth=1)
+        self.ball_subscriber = self.ros_node.create_subscription(
+            ace_interfaces.msg.PointsWithCovariance,
+            "/sensors/ball_triangulation/points",
+            self.on_ball_pose_callback,
+            qos_profile=qos_profile,
+        )
+        qos_persistent = rclpy.qos.QoSProfile(depth=1)
+        qos_persistent.reliability = rclpy.qos.QoSReliabilityPolicy.RELIABLE
+        qos_persistent.durability = rclpy.qos.QoSDurabilityPolicy.TRANSIENT_LOCAL
+        self._calib_reload_pub = self.ros_node.create_publisher(
+            std_msgs.msg.Bool, "/sensors/calibration/reload_state", qos_persistent
+        )
+
+    # @staticmethod
+    def update_calibration_file(self, config, offset_matrix):
+        """update calibration file"""
+
+        calib_share_path = get_package_share_directory("calibration")
+        camera_calib_yaml_path = f"{calib_share_path}/parameters/camera_calibration/{config}.yaml"
+
+        with open(camera_calib_yaml_path, "r", encoding="utf-8") as file:
+            camera_calib_params = yaml.load(file, Loader=yaml.FullLoader)  # pylint: disable=no-member
+
+        print("Original T_WO")
+        print(np.array(camera_calib_params["T_WO"]))
+        camera_calib_params["T_WO"] = np.matmul(camera_calib_params["T_WO"], offset_matrix).tolist()
+        print("Updated T_WO")
+        print(np.array(camera_calib_params["T_WO"]))
+
+        if not self.dry_run:
+            with open(camera_calib_yaml_path, "w", encoding="utf-8") as file:
+                yaml.dump(  # pylint: disable=no-member
+                    camera_calib_params, file, default_flow_style=None, sort_keys=False
+                )
+
+        return True
+
+    def destroy(self):
+        """destroy"""
+        self.keyboard.set_normal_term()
+        self.ball_subscriber = None
+        self._calib_reload_pub = None
+        self.ros_node.destroy_node()
+
+    def calibrate(self):
+        """do calibration"""
+        model_points = self.offset + 0.5 * np.array(
+            [
+                [-self.table_length, -self.table_width, 0],
+                [+self.table_length, -self.table_width, 0],
+                [+self.table_length, +self.table_width, 0],
+                [-self.table_length, +self.table_width, 0],
+            ]
+        )
+        self.wo_matrix = calibrator_utils.compute_affine_transformation(model_points, np.array(self.calib_points))
+        return True
+
+    def get_position(self, samples_count=5):
+        """get position of the ball"""
+        samples = []
+        timeout = 0
+        last_sample_id = 0
+        while len(samples) < samples_count and timeout < 50:
+            rclpy.spin_once(self.ros_node, timeout_sec=0.01)
+            if self.ball_pose is not None and self.ball_pose[3] != last_sample_id:
+                samples.append(self.ball_pose[:3])
+                last_sample_id = self.ball_pose[3]
+                timeout = 0
+            else:
+                timeout += 1
+
+        if len(samples) < samples_count:
+            print(f"get_position() timed out with {len(samples)} < {samples_count}!")
+            return None
+        return np.average(samples, axis=0)
+
+    def update(self):
+        """update"""
+        rclpy.spin_once(self.ros_node, timeout_sec=0.1)
+        if self.keyboard.kbhit():
+            key = self.keyboard.getch()
+            try:
+                self.process_key(key)
+            except Exception as err:  # pylint: disable = broad-except
+                print(err)
+
+    def process_key(self, key):
+        """Process keyboard keys"""
+        match key:
+            case "q":
+                self.is_done = True
+            case "r":
+                print("\nRestting calibration")
+                print("Move to (-x,-y) corner and press 't'")
+                self.calib_points = []
+            case "t":
+                print("\npoints:", len(self.calib_points))
+                pos = self.get_position()
+                if pos is None:
+                    print("  - ERROR: Failed to get position!")
+                elif len(self.calib_points) == 0:
+                    self.calib_points.append(pos)
+                    print(f"(-x,-y) corner got recorded: {pos[0]:8.3f}, {pos[1]:8.3f}, {pos[2]:8.3f}")
+                    print("Move to (+x,-y) corner and press 't'")
+
+                elif len(self.calib_points) == 1:
+                    self.calib_points.append(pos)
+                    print(f"(+x,-y) corner got recorded: {pos[0]:8.3f}, {pos[1]:8.3f}, {pos[2]:8.3f}")
+                    print("Move to (+x,+y) corner and press 't'")
+
+                elif len(self.calib_points) == 2:
+                    self.calib_points.append(pos)
+                    print(f"(+x,+y) corner got recorded: {pos[0]:8.3f}, {pos[1]:8.3f}, {pos[2]:8.3f}")
+                    print("Move to (-x,+y) corner and press 't'")
+
+                elif len(self.calib_points) == 3:
+                    self.calib_points.append(pos)
+                    print(f"(-x,+y) corner got recorded: {pos[0]:8.3f}, {pos[1]:8.3f}, {pos[2]:8.3f}")
+                    print("Attempting to compute transform")
+
+                    if self.calibrate():
+                        print("Transform computed, press 'u' to update calibration file")
+                    else:
+                        print("Transform computation failed, press 'r' to reset calibration")
+            case "u":
+                print("\nSaving calibration")
+                if self.wo_matrix is None:
+                    print("  - ERROR: Please take observations first!")
+                elif self.update_calibration_file(self.config, self.wo_matrix):
+                    reload_msg = std_msgs.msg.Bool(data=True)
+                    self._calib_reload_pub.publish(reload_msg)
+                    self.is_done = True
+                    print("  - INFO: Table calibration done!")
+                    print("!!! Please ensure that:")
+                    print("    (1) Triangulation node reloaded")
+                    print("    (2) The robot calibration dance is run next")
+
+    def on_ball_pose_callback(self, msg):
+        """ROS callback for ball pose"""
+        try:
+            if len(msg.points) > 0:
+                pos = msg.points[0].position
+                self.ball_pose = [pos.x, pos.y, pos.z, msg.header.sequence_number]
+        except Exception as err:  # pylint: disable=broad-except
+            print(err)
+
+
+def main(args):
+    """Main"""
+    context = Context(args)
+
+    print("Please place the ball at (-x,-y) corner and press 't'")
+    print("Once a ball is visible, you will see its coordinates below.")
+    print("- 't' to take observation")
+    print("- 'u' to update caliberation")
+    print("- 'r' to reset")
+    print("- 'q' to quit")
+    while rclpy.ok() and not context.is_done:
+        context.update()
+        if context.ball_pose is not None:
+            print(f"\r{context.ball_pose[0]:8.4f}, {context.ball_pose[1]:8.4f}, {context.ball_pose[2]:8.4f}", end="")
+
+    context.destroy()
+
+    print("")
+    print("---Done---")
+
+
+if __name__ == "__main__":
+    USAGE = """
+    Example
+    calibrate --config <config>
+    """
+    # setup argument list
+    parser = argparse.ArgumentParser(description="calibrate table origin.", usage=USAGE)
+    parser.add_argument(
+        "--config",
+        dest="config",
+        type=str,
+        help="Lab specific configuration, e.g. zrh00, zrh01, tyo02.",
+        required=True,
+    )
+    parser.add_argument(
+        "--x_offset",
+        "-x",
+        type=float,
+        default=0.0,
+        help="Offset of the calibration ball along x-direction in [m] (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--y_offset",
+        "-y",
+        type=float,
+        default=0.0,
+        help="Offset of the calibration ball along y-direction in [m] (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--z_offset",
+        "-z",
+        type=float,
+        default=0.02432,
+        help="Offset of the calibration ball along z-direction in [m] (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--table_width",
+        "-w",
+        type=float,
+        default=1.525,
+        help="Width of the table in [m] (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--table_length",
+        "-l",
+        type=float,
+        default=2.738,
+        help="Length of the table in [m] (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--dry_run",
+        "-d",
+        action="store_true",
+        dest="dry_run",
+        help="Dry run.",
+    )
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
+
+    parsed = parser.parse_args()
+    main(parsed)

@@ -1,0 +1,16 @@
+defaults:
+  - "default_tyo.yaml"
+
+cuda_device_uuids:
+  - GPU-add59975-3dc4-f5a2-36f4-215e710298de
+  - GPU-3ad62da4-b4df-6f5b-b113-da97cb1c9228
+appearance_filter:
+  min_circularity_ratio: 0.67
+  min_radius: 5
+camera_names:
+  - aps23175185
+  - aps23175188
+  - aps23175575
+  - aps23175992
+  - aps22240289
+  - aps22240293

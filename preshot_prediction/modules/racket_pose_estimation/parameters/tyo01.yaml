@@ -1,0 +1,13 @@
+defaults:
+  - defaults.yaml
+
+rackets:
+  Player1:
+    id: 0
+    cameras:
+      - aps22087079
+      - aps21107992
+      - aps22106662
+      # behind player
+      - aps20370530
+      - aps22240282

@@ -1,0 +1,7 @@
+
+defaults:
+- defaults.yaml
+
+# orientation
+orientation_estimator_type: "QuaternionMEKF"
+max_angle: 13  # max angle before capping (MEKF)

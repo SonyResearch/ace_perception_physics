@@ -1,0 +1,6 @@
+defaults:
+  - "default_tokyo.yaml"
+
+chunk_data_control:
+  chunk_mode_active: true
+  exposure_time: true

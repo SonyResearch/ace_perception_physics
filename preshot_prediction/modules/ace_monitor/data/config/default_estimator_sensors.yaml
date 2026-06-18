@@ -1,0 +1,18 @@
+
+sensors:
+- type: "aps"
+  publish_orientation: True
+  publish_velocity: True
+  publish_spin: True
+  spin_estimator:
+    poses_frequency: -1
+    min_history_length: 6
+    max_history_length: 20
+    obs_cov_scaling: 1e-3
+  velocity_estimator:
+    poses_frequency: -1
+    min_history_length: 6
+    max_history_length: 20
+- type: "evs_vel"
+- type: "evs_pos"
+- type: "gcs"

@@ -1,0 +1,22 @@
+ball_pos_estimation:
+  spin_estimator:
+    poses_frequency: -1
+    min_history_length: 5
+    max_history_length: 10
+    obs_cov_scaling: 1e-3
+  velocity_estimator:
+    poses_frequency: -1
+    min_history_length: 2
+    max_history_length: 5
+    obs_cov_scaling: 1e-3
+
+visualizer:
+  ekf_max_history: 30
+  width: 1440
+  height: 1080
+  ortho_size: 5
+  camera_font_size: 48
+
+
+alarms:
+  voi_z: -0.4

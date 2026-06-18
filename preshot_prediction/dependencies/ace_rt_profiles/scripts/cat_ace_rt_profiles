@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""Confidential, Copyright 2025, Sony AI, All rights reserved"""
+
+import argparse
+import ace_yaml
+
+from ace_rt_profiles import get_config_file
+
+
+# enable printing only lists inline while the rest is in block style
+ace_yaml.Dumper.add_representer(  # pylint: disable=no-member
+    list, lambda dumper, data: dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
+)
+
+
+def main() -> None:
+    """Entrypoint"""
+    parser = argparse.ArgumentParser(description="Prints the real time profiles available in this environment")
+    parser.add_argument("--config", type=str, help="Config file to cat, automatically deduced from env vars if empty")
+    parser.add_argument("--profiles", nargs="+", type=str, help="Only print these profiles")
+    args = parser.parse_args()
+
+    config_filepath: str = args.config or get_config_file()
+    with open(config_filepath, encoding="utf-8") as config_file:
+        config: dict = ace_yaml.load(config_file)
+
+    # filter profiles to show
+    if args.profiles:
+        for profile in list(config):
+            if profile not in args.profiles:
+                del config[profile]
+
+    print(config_filepath)
+
+    # print a newline between each profile to make it easier to read
+    config_dump: str = ace_yaml.dump(config)  # pylint: disable=no-member
+    for line in config_dump.splitlines():
+        if not line.startswith(" "):
+            print()
+        print(line)
+
+
+if __name__ == "__main__":
+    main()

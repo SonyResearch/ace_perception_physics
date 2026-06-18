@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+"""
+Confidential, Copyright 2025, Sony AI, All rights reserved.
+"""
+
+import os
+import time
+import numpy as np
+
+import cv2
+import colored_glog as glog
+from ace_loggers import logger_pybind as logger
+from ament_index_python.packages import get_package_share_directory
+import player_pose.python_module as player_pose
+from calibration import python_module as calibration
+
+# ros
+import rclpy
+from rclpy.node import Node
+from aps import python_module as aps
+import ace_interfaces.msg
+
+
+def set_level(log_level: int = 0) -> None:
+    """Parse C++ glog level to PyPI glog"""
+    logger.initialize()
+    logger.set_level(str(log_level))
+    if log_level == 0:
+        glog.setLevel("INFO")
+    elif log_level == 1:
+        glog.setLevel("WARNING")
+    elif log_level == 2:
+        glog.setLevel("ERROR")
+    elif log_level == 3:
+        glog.setLevel("FATAL")
+
+
+set_level(0)
+
+
+class SimpleKalmanFilter2D:
+    """A simple 2D Kalman filter for tracking positions."""
+
+    def __init__(self, process_noise=1e-2, measurement_noise=1e-1, initial_confidence=0.0):
+        self.x = np.zeros(2)  # State: position [x, y] # pylint: disable=invalid-name
+        self.P = np.eye(2)  # State covariance # pylint: disable=invalid-name
+        self.Q = np.eye(2) * process_noise  # Process noise covariance # pylint: disable=invalid-name
+        self.R = np.eye(2) * measurement_noise  # Measurement noise covariance # pylint: disable=invalid-name
+        self.initialized = False
+        self.confidence = initial_confidence
+
+    def predict(self):
+        """Predict step of the Kalman filter."""
+        # No motion model, just increase uncertainty
+        self.P += self.Q
+
+    def update(self, z, confidence):  # pylint: disable=invalid-name
+        """Update step of the Kalman filter."""
+        if not self.initialized:
+            self.x = np.array(z)
+            self.P = np.eye(2) * (1.0 - confidence + 1e-3)
+            self.initialized = True
+            self.confidence = confidence
+            return self.x.copy()
+        # Measurement update
+        K = self.P @ np.linalg.inv(self.P + self.R / max(confidence, 1e-3))  # pylint: disable=invalid-name
+        self.x = self.x + K @ (np.array(z) - self.x)
+        self.P = (np.eye(2) - K) @ self.P
+        self.confidence = confidence
+        return self.x.copy()
+
+
+class PlayerPose2DDetector:
+    """2D Player Pose Detector using YOLOv11 Keypoints model."""
+
+    def __init__(self, config, sampling=5):
+        self.config = config
+        self.sampling = sampling
+
+        self.pos_tracker = SimpleKalmanFilter2D()
+
+        calibration_package_path = get_package_share_directory("calibration")
+        player_package_path = get_package_share_directory("player_pose")
+        calibration_params_path = os.path.join(
+            calibration_package_path,
+            "parameters",
+            "camera_calibration",
+            config + ".yaml",
+        )
+
+        player_params_path = os.path.join(
+            player_package_path,
+            "parameters",
+            config + ".yaml",
+        )
+        model_path = os.path.join(
+            player_package_path,
+            "models",
+            "yolo11n-pose-batch.onnx",
+        )
+
+        self.camera_params = calibration.CameraCalibrationParameters()
+        self.camera_params.initialize(calibration_params_path)
+
+        self.player_params = player_pose.PlayerParameters()
+        self.player_params.initialize(player_params_path)
+        self.player_params.initialize_cameras(self.camera_params)
+
+        self.detector = player_pose.person_detector()
+        self.detector.initialize(self.player_params, model_path)
+        self.count = 0
+        self.time_acc = 0
+        self.last_time = time.time()
+        self.is_right_handed = True
+        self.is_camera_mirrored = False
+
+    @staticmethod
+    def rotate_bayer8_image(image, angle):
+        """Rotate a Bayer8 image by the given angle (in degrees) using 2x2 block processing."""
+        h, w = image.shape  # pylint: disable=invalid-name
+
+        # Ensure dimensions are multiples of 2
+        h_crop = h - (h % 2)
+        w_crop = w - (w % 2)
+        image = image[:h_crop, :w_crop]
+
+        # Split into 2x2 blocks
+        blocks = image.reshape(h_crop // 2, 2, w_crop // 2, 2).swapaxes(1, 2)  # shape: (H//2, W//2, 2, 2)
+
+        # Flatten blocks for rotation
+        blocks_flat = blocks.reshape(-1, 2, 2)  # shape: (num_blocks, 2, 2)
+
+        # Create a temporary image where each block is a "pixel"
+        block_image = np.zeros((h_crop // 2, w_crop // 2), dtype=np.uint32)
+        block_image[:, :] = np.arange(blocks_flat.shape[0]).reshape(h_crop // 2, w_crop // 2)
+
+        # Rotate the "block image" with interpolation
+        center = (w_crop // 4, h_crop // 4)
+        rot_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+        cos = np.abs(rot_matrix[0, 0])
+        sin = np.abs(rot_matrix[0, 1])
+        new_w = int(h_crop // 2 * sin + w_crop // 2 * cos)
+        new_h = int(h_crop // 2 * cos + w_crop // 2 * sin)
+        rot_matrix[0, 2] += (new_w / 2) - center[0]
+        rot_matrix[1, 2] += (new_h / 2) - center[1]
+
+        rotated_block_indices = cv2.warpAffine(
+            block_image.astype(np.float32), rot_matrix, (new_w, new_h), flags=cv2.INTER_NEAREST
+        )
+        rotated_block_indices = np.round(rotated_block_indices).astype(np.int32)
+
+        # Clip indices to valid range
+        rotated_block_indices = np.clip(rotated_block_indices, 0, blocks_flat.shape[0] - 1)
+
+        # Reconstruct rotated Bayer image
+        new_h_full = rotated_block_indices.shape[0] * 2
+        new_w_full = rotated_block_indices.shape[1] * 2
+        rotated_bayer = np.zeros((new_h_full, new_w_full), dtype=np.uint8)
+
+        for i in range(rotated_block_indices.shape[0]):
+            for j in range(rotated_block_indices.shape[1]):
+                idx = rotated_block_indices[i, j]
+                rotated_bayer[i * 2 : i * 2 + 2, j * 2 : j * 2 + 2] = blocks_flat[idx]
+
+        return rotated_bayer
+
+    def extract_pose(self, image_raw):
+        """Extract 2D player pose from the given raw Bayer8 image."""
+        # Define the rotation angle and scale
+        # image=rotate_bayer8_image(image_raw, angle)
+
+        t1 = time.time()  # pylint: disable=invalid-name
+        detection = self.detector.extract_person(image_raw, 0, False)
+
+        ball_position = None
+        ball_visibility = 0
+
+        min_arm_length = 10
+
+        right_handed = self.is_right_handed
+        if self.is_camera_mirrored:
+            right_handed = not right_handed
+
+        if len(detection.keypoints) != 0:
+            if right_handed:
+                elbow_idx = 8
+                wrist_idx = 10
+            else:
+                elbow_idx = 7
+                wrist_idx = 9
+            elbow_dir = np.array(detection.keypoints[wrist_idx][:2]) - np.array(detection.keypoints[elbow_idx][:2])
+            elbow_v = detection.keypoints[elbow_idx][2]
+            wrist_v = detection.keypoints[wrist_idx][2]
+
+            ball_visibility = elbow_v * 0.3 + wrist_v * 0.7
+            elbow_length = np.linalg.norm(elbow_dir)
+            if elbow_length < min_arm_length:
+                return detection, None, 0
+            elbow_dir = elbow_dir / elbow_length
+            ball_position = np.array(detection.keypoints[wrist_idx][:2]) + elbow_dir * elbow_length * 0.3
+
+            self.pos_tracker.predict()
+            ball_position = self.pos_tracker.update(ball_position, ball_visibility)
+            ball_visibility = self.pos_tracker.confidence
+
+        t2 = time.time()  # pylint: disable=invalid-name
+
+        self.time_acc += t2 - t1
+        self.count += 1
+        if t2 - self.last_time > 1:
+            print(self.count, ":", self.time_acc * 1e3 / self.count, "ms")
+            self.time_acc = 0
+            self.count = 0
+            self.last_time = t2
+
+        return detection, ball_position, ball_visibility
+
+    def run_detector(self, camera_name):
+        """Run the 2D player pose detector node."""
+        self.is_camera_mirrored = camera_name == "23175981"
+
+        rclpy.init()
+        rclpy_node = Node("player_detector")
+        image_sub = aps.ZeroCopySubscriber()
+
+        hand_publisher = rclpy_node.create_publisher(
+            ace_interfaces.msg.BallsWithAttributes, "/sensors/player_pose/hand", 1
+        )
+
+        msg = ace_interfaces.msg.BallsWithAttributes()
+        detection_point = ace_interfaces.msg.BallWithAttributes()
+
+        image_handler = image_sub.add_subscription(f"/sensors/aps{camera_name}/image")
+        last_frame = -1
+        while rclpy.ok():
+            rclpy.spin_once(rclpy_node, timeout_sec=0)
+            (
+                ret,
+                frame_id,
+                _,
+                imgs_raw,
+            ) = image_sub.get_latest_message(image_handler)
+            if ret and frame_id != last_frame:
+                last_frame = frame_id
+
+                if frame_id % self.sampling != 0:
+                    continue
+                _, ball_position, ball_visibility = self.extract_pose(imgs_raw)
+                msg.header.sequence_number = frame_id
+                if ball_position is not None:
+                    detection_point.ball.center.x = float(ball_position[0])
+                    detection_point.ball.center.y = float(ball_position[1])
+                    detection_point.ball.radius = float(ball_visibility)
+                    msg.balls.append(detection_point)
+                else:
+                    msg.balls.clear()
+
+                hand_publisher.publish(msg)
+            image_sub.release_latest_message(image_handler)
+
+
+if __name__ == "__main__":
+    detector = PlayerPose2DDetector("gcs_beamsplitter", sampling=10)
+    detector.run_detector("23175981")

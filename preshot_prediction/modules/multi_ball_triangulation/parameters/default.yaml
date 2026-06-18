@@ -1,0 +1,26 @@
+timeout_ms: 100
+use_variable_response_time: true
+camera_buffer_length: 2
+worker_queue_length: 3
+max_triangulated_balls: 100
+triangulation:
+  covariance_model: metric
+  geometric_error_threshold: 0.75
+  radius_error_threshold: 0.15
+  observation_variance: 0.04
+  nonlinear_refinement:
+    use: true
+    tol_position: 1e-10
+    tol_reprojection_error: 1e-8
+    max_iterations: 10
+projector:
+    enable: true
+    ball_radius: 0.02
+voi_filter:
+  enable: false
+  min_corner: [0.5, -1, -0.3]
+  max_corner: [5.0, 1.0, 4.0]
+
+ghost_balls_filter:
+  similarity_threshold: 0.04 # min distance between two balls to consider as similar (ghost)
+  filter_policy: merge

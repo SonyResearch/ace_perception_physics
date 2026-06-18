@@ -1,0 +1,55 @@
+defaults:
+  - tyo01.yaml
+
+person_detector:
+  device_index: 0
+  conf_threshold: 0.5
+  nms_threshold: 0.65
+  topK: 1
+  sampling: 4
+  bbox_inflation: [0.4,0.3]
+
+extractor:
+  device_index: 0
+  sampling: 4
+  workers_count: 5
+  rt_profile: player_pose_extractor
+
+capture:
+  worker_queue_length: 1
+  camera_buffer_length: 1
+  use_variable_response_time: true
+
+cameras: # none, CW/CCW/180/auto
+    aps21115382:
+      rotate: none
+    aps22138156:
+      rotate: none
+    aps21115385:
+      rotate: none
+    aps23287107:
+      rotate: none
+
+players:
+  Player1:
+    id: 0
+    cameras:
+    - name: aps21115382
+      ROI: [130,80,960,760]
+    - name: aps22138156
+      ROI: [0,400,490,930]
+    - name: aps21115385
+      ROI: [160,140,1270,540]
+    - name: aps23287107
+      ROI: [220,510,1440,1080]
+  Player2:
+    id: 1
+    cameras:
+    - name: aps21115382
+      ROI: [960,200,1440,950]
+    - name: aps22138156
+      ROI: [340,150,1100,750]
+    - name: aps21115385
+      ROI: [0,450,1440,1080]
+    - name: aps23287107
+      ROI: [90,110,1270,610]

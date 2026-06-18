@@ -1,0 +1,20 @@
+defaults:
+  - "default_tyo.yaml"
+
+appearance_filter:
+  min_circularity_ratio: 0.67
+  min_radius: 5
+camera_names:
+  - webcam
+
+color_filter:
+  blur_kernel_size: 7
+  hsv_lower_boundary: [1, 40, 220]
+  hsv_upper_boundary: [95, 215, 255]
+motion_filter:
+  enable: false
+  delay: 0.05
+  lower_boundary: 15
+  upper_boundary: 255
+markers:
+  enable: false

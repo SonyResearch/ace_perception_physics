@@ -1,0 +1,4 @@
+
+defaults:
+- defaults.yaml
+orientation_estimator_type: "QuaternionKF"

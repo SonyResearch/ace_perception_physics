@@ -1,0 +1,11 @@
+
+defaults:
+ - "default.yaml"
+first_as_master: true
+serial_numbers:
+  - "21115385"
+  - "21107997"
+  - "21115384"
+  - "21115382"
+  - "21107993"
+  - "21107992"

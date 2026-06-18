@@ -1,0 +1,48 @@
+###################
+#    PERCEPTION   #
+###################
+# RT profiles used during games in the perception PC
+
+ace_monitor:
+  affinity: [1]
+  priority: 89
+
+aps:
+  affinity: [2, 3, 4, 5, 6, 7]
+
+aps_player:
+  affinity: [2, 3, 4, 5]
+
+arena_native_ros:
+  affinity: [20,21,22,23,24,25]
+  policy: SCHED_RR
+  priority: 89
+
+ball_detection_aps:
+  affinity: [8, 9, 10, 11, 12]
+
+fpga_aps:
+  affinity: [8, 9, 10, 11, 12]
+
+multi_ball_triangulation:
+  affinity: [13]
+
+player_pose_extractor:
+  affinity: [14,15,16]
+
+perception_default_ros:
+  affinity: [20,21,22,23,24,25]
+  policy: SCHED_RR
+  priority: 89
+
+racket_pose_extractor:
+  affinity: [17,18,19]
+
+racket_pose_extractor_player:
+  affinity: [17,18,19]
+
+trajectory_estimator:
+  affinity: [11]
+
+trajectory_estimator_ace_monitor:
+  affinity: [6]

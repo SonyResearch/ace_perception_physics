@@ -1,0 +1,15 @@
+
+defaults:
+  - "default_tyo.yaml"
+
+markers:
+  enable: false
+
+# EWand settings overrides
+color_filter:
+  hsv_lower_boundary: [9, 120, 90]
+  hsv_upper_boundary: [60, 240, 255]
+
+appearance_filter:
+  min_circularity_ratio: 0.5
+  min_radius: 3
