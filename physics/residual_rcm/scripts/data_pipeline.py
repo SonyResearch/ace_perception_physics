@@ -16,7 +16,6 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import MinMaxScaler, QuantileTransformer, RobustScaler, StandardScaler
 from torch.utils.data import DataLoader, TensorDataset, random_split
 
-matplotlib.use("TkAgg")
 
 from utils import get_params, get_nakashima_matrix
 
@@ -225,6 +224,7 @@ class ArrayDataModule(LightningDataModule):
 
     def __init__(self, cfg: DictConfig, seed_splitting: int = 42):
         super().__init__()
+        self.cfg = cfg
         self.dataset_path: Path = Path(cfg.dataset_path)
         self.batch_size: int = cfg.batch_size
         self.residual_model_bool: bool = cfg.residual_model_bool
@@ -301,7 +301,7 @@ class ArrayDataModule(LightningDataModule):
 
         return kmeans.cluster_centers_
 
-    def _get_dataset_from_csv(self, start_date="2025-11-01", end_date="2027-01-01") -> Tuple[np.ndarray, np.ndarray]:
+    def _get_dataset_from_csv(self, start_date="2025-11-01", end_date="2027-01-01", plot_histograms=False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Load the dataset from a CSV file.
         Error handling for FileNotFound and for Missing coloumn.
@@ -415,7 +415,9 @@ class ArrayDataModule(LightningDataModule):
         ]
 
         xyz_dict = {"x": 0, "y": 1, "z": 2, "w": 3}
-        input_data = None
+        
+        input_data_list = []
+        
         for input_type in self.input_types:
             if input_type in self.input_config:
                 dim_info = self.input_config[input_type]
@@ -447,11 +449,10 @@ class ArrayDataModule(LightningDataModule):
                 cur_input = data[dist_cols_global].to_numpy()
             elif input_type.startswith("gwrx"):
                 cur_input = np.cross(data[racket_spin_cols_global].to_numpy(), data[dist_cols_global].to_numpy())
-                print(f"Shape of gwrx: {np.shape(cur_input)}")
             elif input_type.startswith("rq"):
                 cur_input = data[orientation_cols].to_numpy()
             else:
-                raise NotImplementedError("unknown input type: %s" % input_type)
+                raise NotImplementedError(f"unknown input type: {input_type}")
 
             if "_" in input_type:
                 idx = xyz_dict[input_type.split("_")[1]]
@@ -461,10 +462,10 @@ class ArrayDataModule(LightningDataModule):
             else:
                 assert input_dim == cur_input.shape[1]
 
-            if input_data is None:
-                input_data = cur_input
-            else:
-                input_data = np.concatenate((input_data, cur_input), axis=1)
+            input_data_list.append(cur_input)
+
+        # Concatenate all at once
+        input_data = np.concatenate(input_data_list, axis=1)
 
         expected_output = data[required_columns_output].to_numpy()
         data_info = data[required_columns_info].to_numpy()
@@ -472,36 +473,39 @@ class ArrayDataModule(LightningDataModule):
         ######### DONE #########
         print("\n data pipeline - input_data: ", input_data.shape)
 
-        # Plot histograms of the input and output data to check the distribution.
-        # Input data typically has dimension 8: bv:3, bs:3, dist:2
-        # Output data typically has dimension 6: After_Vel: 3, After_Spin: 3
-        input_shape = np.shape(input_data)[1]
-        output_shape = np.shape(expected_output)[1]
-        num_cols = max(input_shape, output_shape)
-        fig, axs = plt.subplots(2, num_cols, sharex=False, sharey=True, constrained_layout=True)
-        NBINS = 20
+        if plot_histograms:
+            matplotlib.use("TkAgg")
 
-        # Inputs
-        for idx in range(input_shape):
-            ax = axs[0][idx]
-            ax.hist(input_data[:, idx], bins=NBINS)
-            ax.set_title(f"Input {idx}")
-            ax.set_xlabel("Value")
-            ax.set_ylabel("Frequency (Counts)")
-            ax.minorticks_on()
-            ax.grid("on", "both")
+            # Plot histograms of the input and output data to check the distribution.
+            # Input data typically has dimension 8: bv:3, bs:3, dist:2
+            # Output data typically has dimension 6: After_Vel: 3, After_Spin: 3
+            input_shape = np.shape(input_data)[1]
+            output_shape = np.shape(expected_output)[1]
+            num_cols = max(input_shape, output_shape)
+            fig, axs = plt.subplots(2, num_cols, sharex=False, sharey=True, constrained_layout=True)
+            NBINS = 20
 
-        # Outputs
-        for idx in range(output_shape):
-            ax = axs[1][idx]
-            ax.hist(expected_output[:, idx], bins=NBINS)
-            ax.set_title(f"Output {idx}")
-            ax.set_xlabel("Value")
-            ax.set_ylabel("Frequency (Counts)")
-            ax.minorticks_on()
-            ax.grid("on", "both")
+            # Inputs
+            for idx in range(input_shape):
+                ax = axs[0][idx]
+                ax.hist(input_data[:, idx], bins=NBINS)
+                ax.set_title(f"Input {idx}")
+                ax.set_xlabel("Value")
+                ax.set_ylabel("Frequency (Counts)")
+                ax.minorticks_on()
+                ax.grid("on", "both")
 
-        plt.show()
+            # Outputs
+            for idx in range(output_shape):
+                ax = axs[1][idx]
+                ax.hist(expected_output[:, idx], bins=NBINS)
+                ax.set_title(f"Output {idx}")
+                ax.set_xlabel("Value")
+                ax.set_ylabel("Frequency (Counts)")
+                ax.minorticks_on()
+                ax.grid("on", "both")
+
+            plt.show()
 
         return input_data, expected_output, data_info
 
