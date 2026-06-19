@@ -801,14 +801,8 @@ RACKET_CONTACT_COLUMNS = [
     "dx_post", "dy_post", "dz_post",
     "vx_post_Nakashima_default", "vy_post_Nakashima_default", "vz_post_Nakashima_default",
     "wx_post_Nakashima_default", "wy_post_Nakashima_default", "wz_post_Nakashima_default",
-    "vx_post_Nakashima_cpp", "vy_post_Nakashima_cpp", "vz_post_Nakashima_cpp",
-    "wx_post_Nakashima_cpp", "wy_post_Nakashima_cpp", "wz_post_Nakashima_cpp",
-    "vx_post_Parametric_7p", "vy_post_Parametric_7p", "vz_post_Parametric_7p",
-    "wx_post_Parametric_7p", "wy_post_Parametric_7p", "wz_post_Parametric_7p",
     "vx_post_RCM_tangential", "vy_post_RCM_tangential", "vz_post_RCM_tangential",
     "wx_post_RCM_tangential", "wy_post_RCM_tangential", "wz_post_RCM_tangential",
-    "vx_post_cpp_p7p", "vy_post_cpp_p7p", "vz_post_cpp_p7p",
-    "wx_post_cpp_p7p", "wy_post_cpp_p7p", "wz_post_cpp_p7p",
     "vx_post_cpp_tangential", "vy_post_cpp_tangential", "vz_post_cpp_tangential",
     "wx_post_cpp_tangential", "wy_post_cpp_tangential", "wz_post_cpp_tangential",
     "vx_post_cpp_linearCOR", "vy_post_cpp_linearCOR", "vz_post_cpp_linearCOR",
@@ -906,6 +900,7 @@ class RacketContactOptimizer:
             magnus_coeff_linear=0.0,
             magnus_coeff_max=0.069,
             test_new_model=False,
+            use_compact_residual_model=False,
         )
         self._nakashima_aero_params["air_density"] = 1.184
 
@@ -1487,22 +1482,7 @@ class RacketContactOptimizer:
                             _fill_nan("Nakashima_default")
 
                         # ── C++ models replaced by ONNX equivalents ──
-                        try:
-                            _cpp_vel, _cpp_spin = _run_onnx_rcm(
-                                self._onnx_default_session, self._onnx_default_inputs,
-                                self._onnx_default_velxyz, self._onnx_default_spinxyz,
-                                self._onnx_default_posyz, self._onnx_default_vel_out,
-                                self._onnx_default_angvel_out,
-                                _b_pos.astype(np.float32), _b_vel.astype(np.float32), _b_spin.astype(np.float32),
-                                _r_pos.astype(np.float32), _r_quat.astype(np.float32), _r_vel.astype(np.float32),
-                            )
-                            _store_pred((_cpp_vel, _cpp_spin), "Nakashima_cpp")
-                        except Exception as e:  # pylint: disable=broad-exception-caught
-                            print(f"\tWarning: ONNX default (Nakashima_cpp) failed: {e}")
-                            _fill_nan("Nakashima_cpp")
-
-                        # NOTE: cpp_p7p disabled — model no longer loaded
-                        _fill_nan("cpp_p7p")
+                        # Nakashima_cpp and cpp_p7p are purged
 
                         try:
                             _tang_vel, _tang_spin = _run_onnx_rcm(
@@ -1528,14 +1508,7 @@ class RacketContactOptimizer:
                         _fill_nan("cpp_original_exp")
 
                         # ── Parametric / tangential Python models ──
-                        try:
-                            _p7p_new = racket_contacts.PARAMETRIC_7P_NEW
-                            _p7p_params = [_p7p_new["e0"], _p7p_new["e1"], _p7p_new["et0"],
-                                           _p7p_new["et1"], _p7p_new["c_spin"], _p7p_new["alpha"]]
-                            _store_pred(racket_contacts.parametric_7p(_b_vel, _b_spin, _contact, _p7p_params), "Parametric_7p")
-                        except Exception as e:  # pylint: disable=broad-exception-caught
-                            print(f"\tWarning: Parametric_7p failed: {e}")
-                            _fill_nan("Parametric_7p")
+                        # Parametric_7p is purged
 
                         try:
                             _rcm_new = racket_contacts.RCM_TANGENTIAL_NEW
@@ -1794,14 +1767,14 @@ class RacketContactOptimizer:
                         sim_traj = None
                         try:
                             _v_post_sim = np.array([
-                                row.get("vx_post_Nakashima_cpp", float("nan")),
-                                row.get("vy_post_Nakashima_cpp", float("nan")),
-                                row.get("vz_post_Nakashima_cpp", float("nan")),
+                                row.get("vx_post_Nakashima_default", float("nan")),
+                                row.get("vy_post_Nakashima_default", float("nan")),
+                                row.get("vz_post_Nakashima_default", float("nan")),
                             ])
                             _w_post_sim = np.array([
-                                row.get("wx_post_Nakashima_cpp", float("nan")),
-                                row.get("wy_post_Nakashima_cpp", float("nan")),
-                                row.get("wz_post_Nakashima_cpp", float("nan")),
+                                row.get("wx_post_Nakashima_default", float("nan")),
+                                row.get("wy_post_Nakashima_default", float("nan")),
+                                row.get("wz_post_Nakashima_default", float("nan")),
                             ])
                             if not (np.any(np.isnan(_v_post_sim)) or np.any(np.isnan(_w_post_sim))):
                                 sim_traj = self._simulate_post_contact(

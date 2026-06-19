@@ -42,8 +42,6 @@ from .fitness_boxplot import _draw_violin
 # "Observed" is omitted — it is the reference, not a model to evaluate.
 _MODEL_DEFS = {
     'Nakashima':               ('default',        (  0, 114, 178)),
-    'C++ residual':            ('cpp',            (200,  50, 200)),
-    'Parametric 7p':           ('parametric_7p',  (128, 128, 128)),
     'RCM Tangential':          ('rcm_tangential', (  0, 200, 200)),
     'C++ tangential':          ('cpp_tangential', (  0, 128, 128)),
     'Nakashima (refined)':      ('nakashima_refined',     (230, 159,   0)),

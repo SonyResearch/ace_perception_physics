@@ -73,8 +73,6 @@ _LOCAL_POST_TO_PRE = {
 _MODEL_SUFFIXES = {
     'Observed (pseudo-GT)': None,
     'Default (constant COR)': 'default',
-    'C++ residual': 'cpp',
-    'Parametric 7p': 'parametric_7p',
     'RCM Tangential': 'rcm_tangential',
     'C++ tangential': 'cpp_tangential',
     'Nakashima (refined)': 'nakashima_refined',

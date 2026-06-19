@@ -29,8 +29,6 @@ from .base_coefficient_plot import save_plot_as_image
 # label → (suffix, colour_rgba)
 _MODELS = {
     'Default (constant COR)': ('default',        (255, 100, 100, 120)),
-    'C++ residual':           ('cpp',            (255, 165,   0, 120)),
-    'Parametric 7p':          ('parametric_7p',  (200,  50, 200, 120)),
     'RCM Tangential':         ('rcm_tangential', (  0, 200, 200, 120)),
     'C++ tangential':         ('cpp_tangential', (  0, 128, 128, 120)),
     'Nakashima (refined)':   ('nakashima_refined',     (255, 140, 140, 120)),

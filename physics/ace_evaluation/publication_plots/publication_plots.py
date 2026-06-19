@@ -59,8 +59,9 @@ MODEL_COLORS = {
     "Nakashima et al.": "rgba(0, 114, 178, 0.8)",
     "Nakashima et al. (refined)": "rgba(0, 178, 114, 0.8)",
     #"ONNX alex (refined)": "rgba(0, 158, 115, 0.8)",
-    "Current": "rgba(200, 50, 200, 0.8)",
-    "Dürr et al.": "rgba(255, 127, 14, 0.8)",
+    "Proposed": "rgba(200, 50, 200, 0.8)",
+    #"Dürr et al.": "rgba(255, 127, 14, 0.8)",
+    "Prior work": "rgba(255, 127, 14, 0.8)",
 }
 
 
@@ -529,8 +530,8 @@ def plot_aero_boxplot(dp, mc):
     models = [
         #("Optimal", "opt"),
         ("Nakashima et al.", "nakashima"),
-        ("Dürr et al.", "0426"),
-        ("Current", "0226"),
+        ("Prior work", "0426"),
+        ("Proposed", "0226"),
     ]
 
     fig = go.Figure()
@@ -564,7 +565,7 @@ def plot_aero_boxplot(dp, mc):
     )
 
     # ── Terminal statistics ──────────────────────────────────────────────────
-    print("\n  [Aero violin] Improvement of Current over baselines (lower RMSE = better):")
+    print("\n  [Aero violin] Improvement of Proposed over baselines (lower RMSE = better):")
     # Collect per-model clipped RMSE arrays
     clipped = {}
     for m_label, m_key in models:
@@ -576,11 +577,11 @@ def plot_aero_boxplot(dp, mc):
         rmse_mm = filtered[valid] * 1000.0
         clipped[m_label] = _clip_iqr(rmse_mm)
 
-    if "Current" in clipped:
-        cur = clipped["Current"]
+    if "Proposed" in clipped:
+        cur = clipped["Proposed"]
         cur_med = np.median(cur)
         cur_p75 = np.percentile(cur, 75)
-        for baseline in ["Nakashima et al.", "Dürr et al."]:
+        for baseline in ["Nakashima et al.", "Prior work"]:
             if baseline not in clipped:
                 continue
             bl = clipped[baseline]
@@ -589,7 +590,7 @@ def plot_aero_boxplot(dp, mc):
             imp_med = (bl_med - cur_med) / bl_med * 100
             imp_p75 = (bl_p75 - cur_p75) / bl_p75 * 100
             print(f"    vs {baseline}: median {imp_med:+.1f}%, 75th pctl {imp_p75:+.1f}%")
-            print(f"      (Current median={cur_med:.2f}mm, 75th={cur_p75:.2f}mm | "
+            print(f"      (Proposed median={cur_med:.2f}mm, 75th={cur_p75:.2f}mm | "
                   f"{baseline} median={bl_med:.2f}mm, 75th={bl_p75:.2f}mm)")
 
     return fig
@@ -644,7 +645,7 @@ def _build_mask(data, conf_min=0.0, conf_max=1.0, rmse_max=None, fitness_post_ma
 def plot_table_contact_boxplot(dp, mc):
     """
     Table contact violin plot: 2 rows (velocity / spin), components as x-axis groups.
-    Models: Nakashima, Current (Residual0805).
+    Models: Nakashima, Proposed (Residual0805).
 
     Model predictions are read from HDF5 (computed by table_contacts.py).
     """
@@ -663,8 +664,8 @@ def plot_table_contact_boxplot(dp, mc):
     models = [
         #("NakashimaITTF", "ittf"),
         ("Nakashima et al.", "paper"),
-        ("Dürr et al.", "0426"),
-        ("Current", "res0805"),
+        ("Prior work", "0426"),
+        ("Proposed", "res0805"),
     ]
 
     # Confidence + RMSE filter
@@ -735,7 +736,7 @@ def plot_table_contact_boxplot(dp, mc):
     )
 
     # ── Terminal statistics ──────────────────────────────────────────────────
-    print("\n  [Table contact] Per-component improvement of Current over baselines (absolute error):")
+    print("\n  [Table contact] Per-component improvement of Proposed over baselines (absolute error):")
     all_comps = vel_comps + spin_comps
     for comp, clabel in all_comps:
         obs_key = f"{comp}_post"
@@ -753,12 +754,12 @@ def plot_table_contact_boxplot(dp, mc):
                 continue
             comp_errors[m_label] = _clip_iqr(err)
 
-        if "Current" not in comp_errors:
+        if "Proposed" not in comp_errors:
             continue
-        cur = comp_errors["Current"]
+        cur = comp_errors["Proposed"]
         cur_stats = (np.percentile(cur, 25), np.median(cur), np.percentile(cur, 75))
-        print(f"    {comp} — Current: 25th={cur_stats[0]:.4f}, median={cur_stats[1]:.4f}, 75th={cur_stats[2]:.4f}")
-        for baseline in ["Nakashima et al.", "Dürr et al."]:
+        print(f"    {comp} — Proposed: 25th={cur_stats[0]:.4f}, median={cur_stats[1]:.4f}, 75th={cur_stats[2]:.4f}")
+        for baseline in ["Nakashima et al.", "Prior work"]:
             if baseline not in comp_errors:
                 continue
             bl = comp_errors[baseline]
@@ -796,8 +797,8 @@ def export_rcm_csv(dp, mc, output_path: pathlib.Path):
     models = [
         ("Nakashima et al.", "default"),
         ("Nakashima et al. (refined)", "nakashima_refined"),
-        ("Dürr et al.", "onnx_0426"),
-        ("Current", "onnx_alex_refined"),
+        ("Prior work", "onnx_0426"),
+        ("Proposed", "onnx_alex_refined"),
     ]
     vel_comps = ["vx", "vy", "vz"]
     spin_comps = ["wx", "wy", "wz"]
@@ -856,8 +857,8 @@ def plot_rcm_boxplot(dp, mc):
     models = [
         ("Nakashima et al.", "default"),
         ("Nakashima et al. (refined)", "nakashima_refined"),
-        ("Dürr et al.", "onnx_0426"),
-        ("Current", "onnx_alex_refined"),
+        ("Prior work", "onnx_0426"),
+        ("Proposed", "onnx_alex_refined"),
     ]
 
     vel_comps = ["vx", "vy", "vz"]
@@ -935,11 +936,11 @@ def plot_rcm_boxplot(dp, mc):
             model_abs_err[m_label] = err
 
         print(f"\n    {kind} magnitude ({unit}):")
-        if "Current" in model_abs_err:
-            cur = model_abs_err["Current"]
+        if "Proposed" in model_abs_err:
+            cur = model_abs_err["Proposed"]
             cur_stats = (np.percentile(cur, 25), np.median(cur), np.percentile(cur, 75))
-            print(f"      Current: 25th={cur_stats[0]:.4f}, median={cur_stats[1]:.4f}, 75th={cur_stats[2]:.4f}")
-            for baseline in ["Nakashima et al.", "Nakashima et al. (refined)", "Dürr et al."]:
+            print(f"      Proposed: 25th={cur_stats[0]:.4f}, median={cur_stats[1]:.4f}, 75th={cur_stats[2]:.4f}")
+            for baseline in ["Nakashima et al.", "Nakashima et al. (refined)", "Prior work"]:
                 if baseline not in model_abs_err:
                     continue
                 bl = model_abs_err[baseline]

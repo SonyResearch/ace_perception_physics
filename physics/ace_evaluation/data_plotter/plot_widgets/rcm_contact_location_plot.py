@@ -64,8 +64,6 @@ _N_BINS = 20  # histogram bins for marginals
 _MODEL_SUFFIXES = {
     'None': None,
     'Default (constant COR)': 'default',
-    'C++ residual': 'cpp',
-    'Parametric 7p': 'parametric_7p',
     'RCM Tangential': 'rcm_tangential',
     'C++ tangential': 'cpp_tangential',
     'Nakashima (refined)': 'nakashima_refined',
