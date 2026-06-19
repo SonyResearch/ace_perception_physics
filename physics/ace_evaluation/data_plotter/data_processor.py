@@ -557,10 +557,7 @@ def build_flight_segment_cache(match_collection: MatchCollection) -> FlightSegme
         # Model predictions (global frame)
         'vx_post_default': [], 'vy_post_default': [], 'vz_post_default': [],
         'wx_post_default': [], 'wy_post_default': [], 'wz_post_default': [],
-        'vx_post_cpp': [], 'vy_post_cpp': [], 'vz_post_cpp': [],
-        'wx_post_cpp': [], 'wy_post_cpp': [], 'wz_post_cpp': [],
-        'vx_post_parametric_7p': [], 'vy_post_parametric_7p': [], 'vz_post_parametric_7p': [],
-        'wx_post_parametric_7p': [], 'wy_post_parametric_7p': [], 'wz_post_parametric_7p': [],
+
         'vx_post_rcm_tangential': [], 'vy_post_rcm_tangential': [], 'vz_post_rcm_tangential': [],
         'wx_post_rcm_tangential': [], 'wy_post_rcm_tangential': [], 'wz_post_rcm_tangential': [],
         'vx_post_cpp_tangential': [], 'vy_post_cpp_tangential': [], 'vz_post_cpp_tangential': [],
@@ -586,10 +583,7 @@ def build_flight_segment_cache(match_collection: MatchCollection) -> FlightSegme
         # Model predictions (racket / local frame)
         'vrx_post_default': [], 'vry_post_default': [], 'vrz_post_default': [],
         'wrx_post_default': [], 'wry_post_default': [], 'wrz_post_default': [],
-        'vrx_post_cpp': [], 'vry_post_cpp': [], 'vrz_post_cpp': [],
-        'wrx_post_cpp': [], 'wry_post_cpp': [], 'wrz_post_cpp': [],
-        'vrx_post_parametric_7p': [], 'vry_post_parametric_7p': [], 'vrz_post_parametric_7p': [],
-        'wrx_post_parametric_7p': [], 'wry_post_parametric_7p': [], 'wrz_post_parametric_7p': [],
+
         'vrx_post_rcm_tangential': [], 'vry_post_rcm_tangential': [], 'vrz_post_rcm_tangential': [],
         'wrx_post_rcm_tangential': [], 'wry_post_rcm_tangential': [], 'wrz_post_rcm_tangential': [],
         'vrx_post_cpp_tangential': [], 'vry_post_cpp_tangential': [], 'vrz_post_cpp_tangential': [],
@@ -1025,8 +1019,7 @@ def build_flight_segment_cache(match_collection: MatchCollection) -> FlightSegme
                     rcm_arrays['wbx_racket'].append(_v3_cache(_rsb, 0)); rcm_arrays['wby_racket'].append(_v3_cache(_rsb, 1)); rcm_arrays['wbz_racket'].append(_v3_cache(_rsb, 2))
                     # Model predictions (global frame)
                     for _sfx, _attr in [('default', 'ball_post_default'),
-                                        ('cpp', 'ball_post_cpp'),
-                                        ('parametric_7p', 'ball_post_parametric_7p'),
+
                                         ('rcm_tangential', 'ball_post_rcm_tangential'),
                                         ('cpp_tangential', 'ball_post_cpp_tangential'),
                                         ('nakashima_refined', 'ball_post_nakashima_refined'),
@@ -1048,8 +1041,7 @@ def build_flight_segment_cache(match_collection: MatchCollection) -> FlightSegme
                     # Model predictions (racket / local frame)
                     for _sfx, _vel_attr, _spin_attr in [
                         ('default', 'ball_vel_post_default_racket', 'ball_spin_post_default_racket'),
-                        ('cpp', 'ball_vel_post_cpp_racket', 'ball_spin_post_cpp_racket'),
-                        ('parametric_7p', 'ball_vel_post_parametric_7p_racket', 'ball_spin_post_parametric_7p_racket'),
+
                         ('rcm_tangential', 'ball_vel_post_rcm_tangential_racket', 'ball_spin_post_rcm_tangential_racket'),
                         ('cpp_tangential', 'ball_vel_post_cpp_tangential_racket', 'ball_spin_post_cpp_tangential_racket'),
                         ('nakashima_refined', 'ball_vel_post_nakashima_refined_racket', 'ball_spin_post_nakashima_refined_racket'),
@@ -3580,10 +3572,7 @@ class DataProcessor:
             # model predictions (global frame)
             'vx_post_default': [], 'vy_post_default': [], 'vz_post_default': [],
             'wx_post_default': [], 'wy_post_default': [], 'wz_post_default': [],
-            'vx_post_cpp': [], 'vy_post_cpp': [], 'vz_post_cpp': [],
-            'wx_post_cpp': [], 'wy_post_cpp': [], 'wz_post_cpp': [],
-            'vx_post_parametric_7p': [], 'vy_post_parametric_7p': [], 'vz_post_parametric_7p': [],
-            'wx_post_parametric_7p': [], 'wy_post_parametric_7p': [], 'wz_post_parametric_7p': [],
+
             'vx_post_rcm_tangential': [], 'vy_post_rcm_tangential': [], 'vz_post_rcm_tangential': [],
             'wx_post_rcm_tangential': [], 'wy_post_rcm_tangential': [], 'wz_post_rcm_tangential': [],
             'vx_post_cpp_tangential': [], 'vy_post_cpp_tangential': [], 'vz_post_cpp_tangential': [],
@@ -3797,8 +3786,7 @@ class DataProcessor:
 
                         # Model predictions
                         for _suffix, _attr in [('default', 'ball_post_default'),
-                                               ('cpp', 'ball_post_cpp'),
-                                               ('parametric_7p', 'ball_post_parametric_7p'),
+
                                                ('rcm_tangential', 'ball_post_rcm_tangential'),
                                                ('cpp_tangential', 'ball_post_cpp_tangential'),
                                                ('cpp_refined', 'ball_post_cpp_refined'),

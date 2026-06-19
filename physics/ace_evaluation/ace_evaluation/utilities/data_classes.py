@@ -170,11 +170,9 @@ class RacketContactEvent(Event):
     ball_post_default: Optional[BallState] = None  # Nakashima constant COR
     ball_post_exp: Optional[BallState] = None  # Nakashima exponential COR
     ball_post_piecewise: Optional[BallState] = None  # Nakashima piecewise COR
-    ball_post_cpp: Optional[BallState] = None  # C++ residual model
     ball_post_cpp_refined: Optional[
         BallState
     ] = None  # C++ no-residual (refined inputs)
-    ball_post_parametric_7p: Optional[BallState] = None  # Parametric 7-parameter model
     ball_post_rcm_tangential: Optional[BallState] = None  # RCM tangential
     ball_post_cpp_tangential: Optional[BallState] = None  # C++ with tangential COR ONNX
     ball_post_rcm_tangential_refined: Optional[
@@ -203,12 +201,8 @@ class RacketContactEvent(Event):
     ball_spin_post_exp_racket: Optional[Vec3] = None
     ball_vel_post_piecewise_racket: Optional[Vec3] = None
     ball_spin_post_piecewise_racket: Optional[Vec3] = None
-    ball_vel_post_cpp_racket: Optional[Vec3] = None
-    ball_spin_post_cpp_racket: Optional[Vec3] = None
     ball_vel_post_cpp_refined_racket: Optional[Vec3] = None
     ball_spin_post_cpp_refined_racket: Optional[Vec3] = None
-    ball_vel_post_parametric_7p_racket: Optional[Vec3] = None
-    ball_spin_post_parametric_7p_racket: Optional[Vec3] = None
     ball_vel_post_rcm_tangential_racket: Optional[Vec3] = None
     ball_spin_post_rcm_tangential_racket: Optional[Vec3] = None
     ball_vel_post_cpp_tangential_racket: Optional[Vec3] = None
@@ -1593,9 +1587,7 @@ class MatchCollection:
             ("ball_post_default", "{comp}_post_Nakashima_default"),
             ("ball_post_exp", "{comp}_post_Nakashima_exp"),
             ("ball_post_piecewise", "{comp}_post_Nakashima_piecewise"),
-            ("ball_post_cpp", "{comp}_post_Nakashima_cpp"),
             ("ball_post_cpp_refined", "{comp}_post_Nakashima_cpp_refined"),
-            ("ball_post_parametric_7p", "{comp}_post_Parametric_7p"),
             ("ball_post_rcm_tangential", "{comp}_post_RCM_tangential"),
             ("ball_post_cpp_tangential", "{comp}_post_cpp_tangential"),
             ("ball_post_nakashima_refined", "{comp}_post_Nakashima_refined"),
@@ -1975,16 +1967,10 @@ class MatchCollection:
                 "ball_vel_post_piecewise_racket",
                 "ball_spin_post_piecewise_racket",
             ),
-            ("ball_post_cpp", "ball_vel_post_cpp_racket", "ball_spin_post_cpp_racket"),
             (
                 "ball_post_cpp_refined",
                 "ball_vel_post_cpp_refined_racket",
                 "ball_spin_post_cpp_refined_racket",
-            ),
-            (
-                "ball_post_parametric_7p",
-                "ball_vel_post_parametric_7p_racket",
-                "ball_spin_post_parametric_7p_racket",
             ),
             (
                 "ball_post_rcm_tangential",

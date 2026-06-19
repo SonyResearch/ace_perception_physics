@@ -1036,10 +1036,11 @@ def main():
     else:
         # Single field mapping
         # fm = NAKASHIMA
-        # fm = ONNX_ALEX_FM
+        # fm = ONNX_ALEX_FM # proposed model
+        fm = ONNX_0426_FM
+        
         ## fm = ONNX_RCM_FM
         ## fm = RCM_POLYFIT_FM
-        fm = ONNX_0426_FM
         # fm = AERO_0226_FM
         # fm = AERO_0426_FM
         # fm = AERO_NAKASHIMA_FM
