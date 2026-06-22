@@ -39,7 +39,7 @@ class CustomLoss(nn.Module):
     def __init__(self, cfg: DictConfig):
         super().__init__()
 
-    def forward(self, output: torch.Tensor, target: torch.Tensor, scale=1.0) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, output: torch.Tensor, target: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Computes the custom loss value given the model output and target values.
         """
@@ -304,7 +304,7 @@ class Regressor(L.LightningModule):
         spin_label = y[:, 3:]
 
         rmse_loss_vel, mae_loss_vel = self.criterion(output=y_hat1, target=vel_label)
-        rmse_loss_spin, mae_loss_spin = self.criterion(output=y_hat2, target=spin_label, scale=0.01)
+        rmse_loss_spin, mae_loss_spin = self.criterion(output=y_hat2, target=spin_label)
 
         ### NLL
         loss_vel_nll_conf = self.conf_nll_criterion(
