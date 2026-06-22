@@ -70,7 +70,11 @@ def parse_args():
         default=0,
     )
 
-    parser.add_argument("--debug", action="store_true", help="Plots backprojected original APS trinagulations.")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Plots backprojected original APS trinagulations.",
+    )
 
     args = parser.parse_args()
 
@@ -138,7 +142,9 @@ def visualize_representations(
         )
 
         if debug:
-            position_orig = frame["position_orig"]  # Extract the row data from the frame dictionary
+            position_orig = frame[
+                "position_orig"
+            ]  # Extract the row data from the frame dictionary
             radius_orig = frame["radius_orig"]
 
             orig_circle = Circle(
@@ -201,9 +207,14 @@ def visualize_representations(
         if target_dir_new.exists():
             continue
 
-        ms_duration = min(len(h5_label["points"]), len(h5_event["ms_to_idx"])) // accumulation_time
+        ms_duration = (
+            min(len(h5_label["points"]), len(h5_event["ms_to_idx"]))
+            // accumulation_time
+        )
 
-        assert not debug or accumulation_time == 1, "Accumulation time must be 1 when debug mode is activated."
+        assert (
+            not debug or accumulation_time == 1
+        ), "Accumulation time must be 1 when debug mode is activated."
 
         # Iterate through every frame and save video
         for idx in tqdm(
@@ -227,7 +238,7 @@ def visualize_representations(
             events_x = h5_event["events/x"][ms_start:ms_end].T
             events_y = h5_event["events/y"][ms_start:ms_end].T
             events_p = h5_event["events/p"][ms_start:ms_end].T
-            events_t = h5_event["events/events_t"][ms_start:ms_end].T
+            events_t = h5_event["events/t"][ms_start:ms_end].T
 
             assert (events_t[-1] - events_t[0]) < accumulation_time * 1e3
             events = np.stack((events_t, events_x, events_y, events_p), axis=1)
