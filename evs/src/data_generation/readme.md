@@ -87,6 +87,10 @@ Each `.pt` file is a Python dict (load with
 | `events`               | list[dict]             | Contact/bounce events with `timestamp` keys          |
 | `sequence_number`      | int                    | Rally / sequence id                                  |
 
+> **Note — amateur recordings.** For the amateur recordings, the `events`
+> list used to segment free-flight trajectories (i.e. the contact/bounce
+> points) is **not included**. These recordings were nonetheless processed
+> in their entirety, and their labels were **manually corrected**.
 
 ### 2.2 Calibration YAML
 
