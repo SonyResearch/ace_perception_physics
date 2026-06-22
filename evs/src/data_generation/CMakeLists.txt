@@ -4,10 +4,20 @@ project(data_generation)
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 
-# Install Python package
-ament_python_install_package(${PROJECT_NAME})
+# Resolve Python install dir (e.g. lib/python3.10/site-packages)
+ament_cmake_python_get_python_install_dir()
 
-# Install top-level scripts
+# Install the data_generation directory as an importable Python package so
+# that "from data_generation.tools.xxx import ..." works after colcon install.
+install(
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
+  DESTINATION "${PYTHON_INSTALL_DIR}/data_generation"
+  FILES_MATCHING PATTERN "*.py"
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN ".git" EXCLUDE
+)
+
+# Install top-level scripts as executables
 install(PROGRAMS
   label_pro_player_data.py
   label_pro_player_data_events.py
@@ -17,10 +27,6 @@ install(PROGRAMS
   trim_h5_sequences.py
   visualise_representations_h5.py
   DESTINATION lib/${PROJECT_NAME}
-)
-
-install(DIRECTORY tools DESTINATION lib/${PROJECT_NAME}
-  FILES_MATCHING PATTERN "*.py"
 )
 
 ament_package()
