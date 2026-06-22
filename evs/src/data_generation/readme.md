@@ -187,6 +187,22 @@ i.e. the start of millisecond `k`.
 The `Events` dataclass enforcing these dtypes lives in
 [tools/event_data_format.py](tools/event_data_format.py).
 
+### 3.4 Aligning labels with event slices (how to slice the H5)
+
+Labels and events share the **same millisecond grid**. The rally is sampled
+at 1 ms, so **the k-th label corresponds to the k-th 1 ms slice of the event
+stream**: `label[0]` (the first row of every dataset in `*_label.h5`) lines
+up with the **first** millisecond of events, `label[1]` with the second
+millisecond, and so on. The label datasets and the event `ms_to_idx` lookup
+both carry one entry per rally millisecond, so they index 1:1.
+
+`ms_to_idx[k]` is the index of the **first event in millisecond `k`**
+(`ms_to_idx[k] = searchsorted(events/t / 1e3, k)`). To pull the events that
+belong to `label[k]`, slice the event arrays between two consecutive
+lookups — `events[ms_to_idx[k] : ms_to_idx[k+1]]`:
+
+![Event/label millisecond alignment](docs/event_label_alignment.svg)
+
 ---
 
 ## 4. EVS ↔ APS time synchronization
@@ -238,7 +254,18 @@ and EVS events**. The mechanism is:
 
 Tokyo recordings (older dataset) had inconsistent APS frame intervals
 that did **not** match the EVS triggers exactly, producing a constant
-shift between event and label across a rally. 
+shift between event and label across a rally.
+
+> **Disclaimer — shifted labels from calibration impurities.**
+> Because of impurities in the calibration, some sequences exhibit a
+> spatial/temporal shift between the back-projected 2D label and the ball
+> in the event stream, so **shifted labels are likely to be observed**. In
+> the train–test dataset we share, these shifts have been corrected
+> **manually** — either by trimming the affected leading/trailing
+> milliseconds or by correcting for the per-sequence offset. Future work could 
+> automate this with **region-of-interest (RoI) based corrections**, e.g. in a
+> DAgger-style iterative refinement loop or using classical (non-learned)
+> methods.
 
 ---
 
