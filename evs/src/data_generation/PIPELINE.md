@@ -78,7 +78,7 @@ Multiple recordings are typically grouped under a "recordings root":
 └── ...
 ```
 
-`extract_triggers.py` and `tools/strip_racket_keys.py` accept a
+`extract_triggers.py` and `tools/strip_labels.py` accept a
 **recordings root** and recurse into every nested `evs/` or `label/`
 folder; the labeling scripts (`label_pro_player_data*.py`) operate on
 **one recording folder** at a time.
@@ -98,7 +98,7 @@ Each `.pt` file is a Python dict (load with
 | `racket_*` (`_0`/`_1`) | various                | Racket pose & timestamps; **stripped** for training  |
 | `sequence_number`      | int                    | Rally / sequence id                                  |
 
-Use [tools/strip_racket_keys.py](tools/strip_racket_keys.py) to drop the
+Use [tools/strip_labels.py](tools/strip_labels.py) to drop the
 `racket_*` keys in place across an entire recordings root before training.
 
 ### 2.2 Calibration YAML
@@ -122,7 +122,7 @@ that anchors APS-frame indices to EVS trigger indices (see §4).
 
 Standard Prophesee `.raw` files captured with external trigger input
 wired to the APS camera shutter (see §4). One file per camera, named
-`<cam_name>.raw`. The cameras Sony's setup uses are
+`<cam_name>.raw`. The cameras this capture setup uses are
 `evs00050026`, `evs00050027`, `evs00050028`, `evs00050034`.
 
 ---
@@ -305,7 +305,7 @@ Output: one `triggers.txt` per `evs/` folder.
 ```bash
 python src/data_generation/tools/extract_triggers.py \
     --root_dir <recordings_root_or_one_recording> \
-    --trigger_tool /home/EU/chaydina/ws/src/project_ace_evs_ball/src/evs/tools/evs_trigger_to_txt
+    --trigger_tool /path/to/workspace/src/evs/tools/evs_trigger_to_txt
 ```
 
 The script recursively finds every `evs/` folder and runs
@@ -365,7 +365,7 @@ Trims **events** using the `ms_to_idx` lookup, shifts `t0` accordingly
 (and rebases event times), and **labels** by simple millisecond slicing.
 Output mirrors the input directory tree under `--new_data_root`.
 
-### 5.6 Cleanup — `tools/strip_racket_keys.py`
+### 5.6 Cleanup — `tools/strip_labels.py`
 
 In-place removal of every `racket_*` key from each `.pt` under any
 `label/` folder of a recordings root. Use `--dry-run` first.
@@ -439,7 +439,7 @@ For visualization across many cameras, see
 | [tools/h5_writer.py](tools/h5_writer.py)                                            | 1, 3       | `H5Writer` (events) and `H5WriterLabel`                  |
 | [tools/event_data_format.py](tools/event_data_format.py)                            | 3          | `Events` dataclass with dtype contracts                  |
 | [tools/interpolate_ball_positions.py](tools/interpolate_ball_positions.py)          | 1          | Polyfit, finite-diff, 3D→2D projection                   |
-| [tools/strip_racket_keys.py](tools/strip_racket_keys.py)                            | cleanup    | Drop `racket_*` keys from every `label/*.pt`             |
+| [tools/strip_labels.py](tools/strip_labels.py)                            | cleanup    | Drop `racket_*` keys from every `label/*.pt`             |
 | [convert_h5_to_video_zoomed.py](convert_h5_to_video_zoomed.py)                      | viz        | Per-sequence MP4 with event time-surface + labels        |
 | [trim_h5_sequences.py](trim_h5_sequences.py)                                        | post       | CSV-driven millisecond trimming of events + labels       |
 | [process_raw_files.py](process_raw_files.py)                                        | legacy     | Original `.mat` → `.h5` reformatter (see [README.md](README.md)) |
