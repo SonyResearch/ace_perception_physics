@@ -19,8 +19,8 @@ import pandas as pd
 from calibration import python_module as calibration
 from evs.utilities.event_readers import FixedSizeTriggerEventReader
 
-from evs.src.data_generation.tools.event_data_format import Events
-from evs.src.data_generation.tools.h5_writer import H5Writer
+from data_generation.tools.event_data_format import Events
+from data_generation.tools.h5_writer import H5Writer
 
 
 def parse_args():

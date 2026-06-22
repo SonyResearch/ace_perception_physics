@@ -15,8 +15,8 @@ import numpy as np
 import pandas as pd
 from termcolor import cprint
 import torch
-from evs.src.data_generation.tools.h5_writer import H5WriterLabel
-from evs.src.data_generation.tools.interpolate_ball_positions import (
+from data_generation.tools.h5_writer import H5WriterLabel
+from data_generation.tools.interpolate_ball_positions import (
     ball_vel_finite_diff,
     expand_with_nans,
     interpolate_ball_trajectory_polyfit,
