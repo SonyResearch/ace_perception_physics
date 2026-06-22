@@ -2,7 +2,3 @@
 """
 Package that contains base parameter class.
 """
-
-import ace_setuptools
-
-ace_setuptools.load_dependencies()

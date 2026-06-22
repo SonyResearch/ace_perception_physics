@@ -10,7 +10,6 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>ament_index_python</depend>
-  <depend version_gte="0.0.20">ace_setuptools</depend>
   <depend>ace_containers</depend>
   <depend version_gte="1.0.2">base_parameters</depend>
   <depend>pybind11_vendor</depend>

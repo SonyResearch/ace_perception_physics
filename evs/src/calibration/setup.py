@@ -1,9 +1,22 @@
 """Package installation script"""
+import os
+from setuptools import setup
 
-from ace_setuptools import get_data_mapping, setup
+package_name = 'calibration'
+share = 'share/' + package_name
+
+data_files = [
+    ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
+    (share, ['package.xml']),
+]
+for d in ['parameters', 'launch']:
+    for root, _, files in os.walk(d):
+        if files:
+            data_files.append((os.path.join(share, root), [os.path.join(root, f) for f in files]))
 
 setup(
-    data_files=get_data_mapping(share_files=["parameters/*", "launch/*"]),
+    name=package_name,
+    data_files=data_files,
     scripts=[
         "tools/calibration_calibrate_table",
         "tools/calibration_evaluate",

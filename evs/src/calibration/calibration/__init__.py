@@ -4,8 +4,3 @@ Calibration module.
 
 This modules enables the calibration of a multitude of sensors.
 """
-
-
-import ace_setuptools
-
-ace_setuptools.load_dependencies()
