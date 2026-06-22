@@ -1,5 +1,5 @@
 // Confidential, Copyright 2024, Sony AI, All rights reserved.
-#include "ace_loggers/ace_loggers.hpp"
+#include <glog/logging.h>
 #include "evs/metavision_recorder.hpp"
 
 int main(int argc, char* argv[]) {

@@ -2,25 +2,23 @@ cmake_minimum_required(VERSION 3.5)
 project(calibration CXX)
 
 # find dependencies
-find_package(ace_cmake_utils REQUIRED)
-ace_find_package(ace_containers 1.0.0 REQUIRED)
-ace_find_package(base_parameters 1.0.0 REQUIRED)
-ace_find_package(ament_cmake REQUIRED)
-ace_find_package(ace_loggers REQUIRED)
-ace_find_package(OpenCV 4.8 REQUIRED)
-ace_find_package(ace_yaml 0.0.1 REQUIRED)
+find_package(ace_containers 1.0.0 REQUIRED)
+find_package(base_parameters 1.0.0 REQUIRED)
+find_package(ament_cmake REQUIRED)
+find_package(glog REQUIRED)
+find_package(OpenCV 4.8 REQUIRED)
+find_package(ace_yaml 0.0.1 REQUIRED)
 
 # find python before pybind11
-ace_find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-ace_find_package(pybind11 CONFIG REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+find_package(pybind11 CONFIG REQUIRED)
 
 # set up include
 include_directories(include)
 
 # set library
-ace_add_library(${PROJECT_NAME} SHARED src/camera_calibration_parameters.cpp src/robot_calibration_parameters.cpp)
+add_library(${PROJECT_NAME} SHARED src/camera_calibration_parameters.cpp src/robot_calibration_parameters.cpp)
 
-ament_target_dependencies(${PROJECT_NAME} ace_loggers)
 target_link_libraries(${PROJECT_NAME} glog gflags)
 
 ament_target_dependencies(${PROJECT_NAME} ace_yaml ace_containers base_parameters OpenCV)
@@ -31,7 +29,7 @@ ament_export_dependencies(ace_containers base_parameters)
 # pybind interface
 ament_python_install_package(${PROJECT_NAME})
 
-ace_pybind11_add_module(python_module SHARED src/python_module.cpp)
+pybind11_add_module(python_module SHARED src/python_module.cpp)
 
 add_dependencies(python_module ${PROJECT_NAME})
 
@@ -59,8 +57,8 @@ install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 
 # testing
 if(BUILD_TESTING)
-  ace_find_package(ament_cmake_gtest REQUIRED)
-  ace_find_package(ament_cmake_pytest REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
 
   configure_file(test/root_dir_config.hpp test/root_dir.hpp)
   include_directories(${CMAKE_BINARY_DIR})

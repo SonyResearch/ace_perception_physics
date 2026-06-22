@@ -6,7 +6,8 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from ace_loggers.glog_helper import roslog_to_glog_level
+def roslog_to_glog_level(level: str) -> int:
+    return {"debug": 0, "info": 0, "warn": 1, "warning": 1, "error": 2, "fatal": 3}.get(level.lower(), 0)
 from robot_models.robot_parameters import RobotScenario
 
 from ace_launch.helper_robot_common_nodes import ball_shooter_node

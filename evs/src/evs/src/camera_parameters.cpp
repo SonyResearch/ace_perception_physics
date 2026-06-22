@@ -1,7 +1,7 @@
 // Confidential, Copyright 2024, Sony AI, All rights reserved.
 #include "evs/camera_parameters.hpp"
 
-#include "ace_loggers/ace_loggers.hpp"
+#include <glog/logging.h>
 
 namespace evs {
 

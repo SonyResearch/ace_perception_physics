@@ -7,7 +7,8 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
-from ace_loggers.glog_helper import roslog_to_glog_level
+def roslog_to_glog_level(level: str) -> int:
+    return {"debug": 0, "info": 0, "warn": 1, "warning": 1, "error": 2, "fatal": 3}.get(level.lower(), 0)
 
 
 def generate_launch_description():

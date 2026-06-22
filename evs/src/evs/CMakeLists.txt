@@ -5,29 +5,29 @@ project(evs CXX)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 # find dependencies
-find_package(ace_cmake_utils REQUIRED)
-ace_find_package(ament_cmake REQUIRED)
-ace_find_package(ament_cmake_python REQUIRED)
-ace_find_package(ace_interfaces 0.0.1 REQUIRED)
-ace_find_package(base_parameters 1.0.0 REQUIRED)
-ace_find_package(Eigen3 REQUIRED)
-ace_find_package(ace_loggers REQUIRED)
-ace_find_package(MetavisionSDK COMPONENTS core driver REQUIRED)
-ace_find_package(MetavisionHAL REQUIRED)
-ace_find_package(OpenCV 4.5 REQUIRED)
-ace_find_package(rclcpp REQUIRED)
-ace_find_package(rclpy REQUIRED)
-ace_find_package(ace_yaml 0.0.1 REQUIRED)
+find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+find_package(ace_interfaces 0.0.1 REQUIRED)
+find_package(base_parameters 1.0.0 REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(glog REQUIRED)
+find_package(MetavisionSDK COMPONENTS core driver REQUIRED)
+find_package(MetavisionHAL REQUIRED)
+find_package(OpenCV 4.5 REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclpy REQUIRED)
+find_package(ace_yaml 0.0.1 REQUIRED)
+find_package(Threads REQUIRED)
 
 # find python before pybind11
-ace_find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-ace_find_package(pybind11 CONFIG REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+find_package(pybind11 CONFIG REQUIRED)
 
 # set up include and link directories
 include_directories(include)
 
 # set library
-ace_add_library(${PROJECT_NAME} SHARED src/camera_parameters.cpp src/multi_camera_parameters.cpp)
+add_library(${PROJECT_NAME} SHARED src/camera_parameters.cpp src/multi_camera_parameters.cpp)
 
 ament_target_dependencies(${PROJECT_NAME} ace_yaml base_parameters)
 
@@ -35,7 +35,6 @@ ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 
 # set executable
 add_executable(metavision_recorder_standalone src/metavision_recorder.cpp src/metavision_recorder_standalone.cpp)
-ament_target_dependencies(metavision_recorder_standalone ace_loggers)
 target_link_libraries(metavision_recorder_standalone glog gflags)
 add_dependencies(metavision_recorder_standalone ${PROJECT_NAME})
 
@@ -62,8 +61,8 @@ install(
 install(TARGETS metavision_recorder_standalone DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
-  ace_find_package(ament_lint_auto REQUIRED)
-  ace_find_package(ament_cmake_pytest REQUIRED)
+  find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
 
   ament_lint_auto_find_test_dependencies()
 

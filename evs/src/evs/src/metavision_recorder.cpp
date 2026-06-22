@@ -1,7 +1,7 @@
 // Confidential, Copyright 2024, Sony AI, All rights reserved.
 #include "evs/metavision_recorder.hpp"
 
-#include "ace_loggers/ace_loggers.hpp"
+#include <glog/logging.h>
 #include "metavision/hal/device/device_discovery.h"
 #include "metavision/hal/facilities/i_camera_synchronization.h"
 #include "metavision/hal/facilities/i_decoder.h"
