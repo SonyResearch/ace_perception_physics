@@ -15,7 +15,6 @@ find_package(MetavisionHAL REQUIRED)
 find_package(OpenCV 4.5 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
-find_package(ace_yaml 0.0.1 REQUIRED)
 find_package(Threads REQUIRED)
 
 # find python before pybind11
