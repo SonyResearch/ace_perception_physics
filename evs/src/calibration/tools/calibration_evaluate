@@ -1,0 +1,679 @@
+#!/usr/bin/env python3
+"""
+Evaluate APS/EVS calibration quality.
+"""
+# SPDX-License-Identifier: MIT
+
+# pylint: skip-file
+# system
+
+import argparse
+import os
+import sys
+
+import colored_glog as glog
+
+# opencv
+import cv2
+
+# math stuff
+import numpy as np
+
+# ROS
+from ament_index_python.packages import get_package_share_directory
+from aps import python_module as aps
+from calibration import python_module as calibration
+from scipy import optimize
+from scipy.spatial.transform import Rotation as Rot
+
+# ace
+from ace_apriltags import python_module as apriltags
+from python_helpers.calibration import distort_point, reprojection_error
+from python_helpers.screen import compute_optimal_image_arrangement, get_screen_resolution
+
+
+class CalibrationContext:
+    """
+    This object handles the overall management for the calibration process and life time. Supports multi-tags calibration
+    """
+
+    def __init__(self, config, cam_type, folder, frame_id):
+        # Load camera calibration.
+        self.config = config
+        self.cam_type = cam_type
+
+        self.reload_calibration()
+
+        # Set up Aprilgrid detector.
+        self.april_grid_detector = apriltags.AprilGridDetector(6, 6, 0.088, 0.3)
+        self.object_points = self.april_grid_detector.points()
+
+        self.B_object_points = np.transpose(self.object_points)
+        self.B_object_points = np.vstack([self.B_object_points, np.ones((1, self.B_object_points.shape[1]))])
+
+        # Set up APS camera subscription.
+        self.use_recorded_images = False
+        self.frame_id = frame_id
+        self.folder = folder
+        self.filename = ""
+        if self.cam_type == "evs":
+            self.cam_width = 1280
+            self.cam_height = 720
+        else:
+            self.cam_width = 1440
+            self.cam_height = 1080
+
+        if self.folder != "":
+            self.use_recorded_images = True
+
+            if self.frame_id == -1:
+                self.filename = next(os.walk(self.folder + "/" + self.cam_type + "/" + self.camera_names[0]))[2][0]
+                self.frame_id = int(self.filename[3:-4])
+
+        if not self.use_recorded_images:
+            self.sub = aps.ZeroCopySubscriber()
+            self.handles = [None] * self.num_cameras
+            for i in range(self.num_cameras):
+                topic = "/sensors/" + self.camera_names[i] + "/image"
+                self.handles[i] = self.sub.add_subscription(topic)
+                if self.handles[i] < 0:
+                    glog.error(f'Failed to subscribe to topic "{topic}"')
+
+        # Set up window.
+        self.screen_resolution = get_screen_resolution()
+
+        self.max_window_resolution = (0.9 * self.screen_resolution[0], 0.9 * self.screen_resolution[1])
+        self.scaling, self.grid, self.image_resolution, self.window_resolution = compute_optimal_image_arrangement(
+            self.num_cameras, (self.cam_width, self.cam_height), self.max_window_resolution
+        )
+
+        self.img_zero = np.zeros((self.image_resolution[1], self.image_resolution[0], 3), dtype=np.uint8)
+        self.img_combined = np.zeros((self.window_resolution[1], self.window_resolution[0], 3), dtype=np.uint8)
+        self.img_combined_height = self.window_resolution[1]
+        self.img_combined_width = self.window_resolution[0]
+
+        self.rets = [None] * self.num_cameras
+        self.frame_ids = [None] * self.num_cameras
+        self.encodings = [None] * self.num_cameras
+        self.imgs_raw = [None] * self.num_cameras
+        self.imgs_bgr = [None] * self.num_cameras
+        self.detections_imgs = [None] * self.num_cameras
+
+        self.apriltags_detections = []
+        self.deltas = np.zeros(self.num_cameras * 6, dtype=np.float64)
+        self.calibrated_success = False
+
+        self.detections_invalidated = True
+
+    def destroy(self):
+        """
+        Destroy the object
+        """
+        self.handles.clear()
+
+    def reload_calibration(self):
+        """
+        Reload calibration configuratoin file, and resets the internal stats relevant to the calibration configuration
+        """
+        self.calibrated_success = False
+        self.detections_invalidated = True
+        calibration_params_path = get_package_share_directory("calibration")
+        self.camera_calibration = calibration.CameraCalibrationParameters()
+        if not self.camera_calibration.initialize(
+            os.path.join(calibration_params_path, "parameters", "camera_calibration", self.config + ".yaml")
+        ):
+            raise Exception("Failed to load configuration file")
+        self.camera_calibration_cameras = {
+            camera_name: camera_info
+            for camera_name, camera_info in self.camera_calibration.cameras.items()
+            if self.cam_type in camera_name
+        }
+
+        # Compute undistortion maps.
+        self.num_cameras = len(self.camera_calibration_cameras)
+        self.camera_names = [None] * self.num_cameras  # list of camera names
+        self.Ks = [None] * self.num_cameras  # list of camera matrices
+        self.Ts = [None] * self.num_cameras  # list of projection matrices
+        self.dist_models = [None] * self.num_cameras  # list of distortion model types (e.g. radtan or equidistant)
+        self.dists = [None] * self.num_cameras  # list of distortion coefficients
+        self.maps_x = [None] * self.num_cameras  # list of distortion maps for X coordinate
+        self.maps_y = [None] * self.num_cameras  # list of distortion maps for Y coordinate
+        for i, camera in enumerate(self.camera_calibration_cameras):
+            self.camera_names[i] = camera
+            resolution = self.camera_calibration_cameras[self.camera_names[i]].resolution
+            self.Ks[i] = np.array(self.camera_calibration_cameras[self.camera_names[i]].camera_matrix)
+            self.dist_models[i] = self.camera_calibration_cameras[self.camera_names[i]].distortion_model
+            self.dists[i] = np.array(self.camera_calibration_cameras[self.camera_names[i]].distortion_coeffs)
+            self.Ts[i] = np.array(self.camera_calibration_cameras[self.camera_names[i]].T_camera_origin)
+
+            if self.dist_models[i] == "equidistant":
+                self.maps_x[i], self.maps_y[i] = cv2.fisheye.initUndistortRectifyMap(
+                    self.Ks[i], self.dists[i], np.eye(3), self.Ks[i], resolution, cv2.CV_32F
+                )
+            elif self.dist_models[i] == "radtan":
+                self.maps_x[i], self.maps_y[i] = cv2.initUndistortRectifyMap(
+                    self.Ks[i], self.dists[i], np.eye(3), self.Ks[i], resolution, cv2.CV_32F
+                )
+            else:
+                raise ValueError(f"Unexpected distortion model '{self.dist_models[i]}'")
+        self.deltas = np.zeros(self.num_cameras * 6, dtype=np.float64)
+
+    def reset_aprilgrid_detections(self):
+        """
+        Clean recorded apriltags
+        """
+        self.apriltags_detections = []
+        self.detections_invalidated = True
+
+    def fetch_images(self):
+        """
+        Fetch the images
+        """
+
+        if self.use_recorded_images:
+            if self.cam_type == "evs":
+                file_extension = ".png"
+            else:
+                file_extension = ".jpg"
+            # Get image for each camera.
+            for i in range(self.num_cameras):
+                self.filename = (
+                    self.folder
+                    + "/"
+                    + self.cam_type
+                    + "/"
+                    + self.camera_names[i]
+                    + "/img"
+                    + f"{self.frame_id:08d}"
+                    + file_extension
+                )
+                self.rets[i] = os.path.isfile(self.filename)
+
+                if self.rets[i]:
+                    self.imgs_bgr[i] = cv2.imread(self.filename, cv2.IMREAD_COLOR)
+                    self.frame_ids[i] = self.frame_id
+
+        else:
+            for h in self.handles:
+                self.sub.release_latest_message(h)
+            # Get latest image from each camera.
+            for i in range(self.num_cameras):
+                self.rets[i], self.frame_ids[i], self.encodings[i], self.imgs_raw[i] = self.sub.get_latest_message(
+                    self.handles[i]
+                )
+
+            # Process all images
+            for i in range(self.num_cameras):
+                if self.rets[i]:
+                    if self.encodings[i] == "bayer_rggb8":
+                        self.imgs_bgr[i] = cv2.cvtColor(self.imgs_raw[i], cv2.COLOR_BayerBG2BGR)
+                    elif self.encodings[i] == "mono8":
+                        self.imgs_bgr[i] = cv2.cvtColor(self.imgs_raw[i], cv2.COLOR_GRAY2BGR)
+                    else:
+                        glog.warning("Received unknown encoding: %s" % self.encodings[i])
+
+    def draw_markers(self):
+        """
+        Draw markers of the captured april tags
+        """
+        if self.detections_invalidated:
+            self._draw_markers_force()
+            self.detections_invalidated = False
+        for i in range(self.num_cameras):
+            if self.detections_imgs[i] is not None:
+                self.imgs_bgr[i] = cv2.addWeighted(self.imgs_bgr[i], 1, self.detections_imgs[i], 1, 0)
+
+    def _draw_markers_force(self):
+        for i in range(self.num_cameras):
+            if self.imgs_bgr[i] is not None:
+                self.detections_imgs[i] = np.zeros_like(self.imgs_bgr[i], np.uint8)
+            else:
+                self.detections_imgs[i] = None
+        for d in self.apriltags_detections:
+            corners_observed = d[2]
+            O_object_points = d[3].dot(self.B_object_points)
+            # Draw results into images.
+            for i in range(self.num_cameras):
+                if not d[0][i]:  # skip non detections
+                    continue
+                xh = self.Ks[i].dot(self.Ts[i][:3, :]).dot(O_object_points)
+                xh = xh[:, xh[2, :] > 0]
+                xh = xh[:2, :] / xh[2, :]
+
+                for j in range(xh.shape[1]):
+                    if xh[0, j] < 0 or xh[0, j] > (self.cam_width - 1):
+                        continue
+
+                    if xh[1, j] < 0 or xh[1, j] > (self.cam_height - 1):
+                        continue
+
+                    # distort point
+                    xh[:, j] = self.camera_calibration_cameras[self.camera_names[i]].distort_point(xh[:, j])
+
+                    # draw point
+                    ip = np.array(xh[:, j], dtype=int)
+                    if corners_observed[i][j]:
+                        cv2.circle(self.detections_imgs[i], ip, 4, [0, 255, 0])
+                    else:
+                        cv2.circle(self.detections_imgs[i], ip, 4, [0, 0, 255])
+
+    def prepare_display_images(self, draw_markers=True):
+        """
+        Prepare CV image containing the images, and markers overlayed. Return an OpenCV image that can be used to display
+        """
+        for i in range(self.num_cameras):
+            m = i // self.grid[1]
+            n = i % self.grid[1]
+
+            if self.rets[i]:
+                if draw_markers:
+                    self.draw_markers()
+                self.img_combined[
+                    m * self.image_resolution[1] : (m + 1) * self.image_resolution[1],
+                    n * self.image_resolution[0] : (n + 1) * self.image_resolution[0],
+                    :,
+                ] = cv2.resize(self.imgs_bgr[i], (0, 0), fx=self.scaling, fy=self.scaling)
+                img_roi = self.img_combined[
+                    m * self.image_resolution[1] : (m + 1) * self.image_resolution[1],
+                    n * self.image_resolution[0] : (n + 1) * self.image_resolution[0],
+                    :,
+                ]
+                cv2.putText(
+                    img_roi,
+                    self.camera_names[i],
+                    (10, 15),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (85, 196, 196),
+                    1,
+                    cv2.LINE_AA,
+                )
+                cv2.putText(
+                    img_roi,
+                    "frame_id: " + str(self.frame_ids[i]),
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (85, 196, 196),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+            else:
+                self.img_combined[
+                    m * self.image_resolution[1] : (m + 1) * self.image_resolution[1],
+                    n * self.image_resolution[0] : (n + 1) * self.image_resolution[0],
+                    :,
+                ] = self.img_zero
+                img_roi = self.img_combined[
+                    m * self.image_resolution[1] : (m + 1) * self.image_resolution[1],
+                    n * self.image_resolution[0] : (n + 1) * self.image_resolution[0],
+                    :,
+                ]
+                cv2.putText(
+                    img_roi,
+                    self.camera_names[i],
+                    (10, 15),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (85, 196, 196),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+        return self.img_combined
+
+    def record_apriltags(self, min_cameras):
+        """
+        Record a set of apriltags from all cameras.
+        max_invisible: sets the maximum number allowed to tolerate the invisible tags. If number of invalid detections exceeded this value then it will fail to record
+        """
+        # Try to find Aprilgrid in each camera.
+        rets_april = [False] * self.num_cameras
+        image_points = [None] * self.num_cameras
+        corners_observed = [None] * self.num_cameras
+        for i in range(self.num_cameras):
+            if self.rets[i]:
+                rets_april[i], image_points[i], corners_observed[i] = self.april_grid_detector.detect(self.imgs_bgr[i])
+
+        if np.count_nonzero(rets_april) < min_cameras:
+            glog.error("Failed to compute transformation. Could not detect enough Aprilgrid in all APS image frames.")
+            return False
+
+        # Get initial guess of Aprilgrid position using any camera.
+        ret_pnp = False
+        T_CB = []
+        for i in range(self.num_cameras):
+            if rets_april[i]:
+                # Solve PnP
+
+                if self.dist_models[i] == "equidistant":
+                    image_points_undist = cv2.fisheye.undistortPoints(
+                        np.expand_dims(image_points[i], axis=1), self.Ks[i], self.dists[i], np.eye(3), self.Ks[i]
+                    )
+                elif self.dist_models[i] == "radtan":
+                    image_points_undist = cv2.undistortPoints(
+                        np.expand_dims(image_points[i], axis=1), self.Ks[i], self.dists[i], np.eye(3), self.Ks[i]
+                    )
+                else:
+                    raise ValueError(f"Unexpected distortion model '{self.dist_models[i]}'")
+                image_points_undist = np.asarray(image_points_undist).reshape((-1, 2))
+                ret_pnp, rvec, tvec = cv2.solvePnP(
+                    self.object_points[corners_observed[i]],
+                    image_points_undist[corners_observed[i]],
+                    self.Ks[i],
+                    np.empty(0),
+                )
+
+                if ret_pnp:
+                    T_CB = np.eye(4, dtype=np.float64)
+                    T_CB[:3, :3] = Rot.from_rotvec(rvec.ravel()).as_matrix()
+                    T_CB[:3, 3] = tvec.ravel()
+                    # We just need the matrix representing the board's position in reference to the first camera (master camera).
+                    T_OB = np.array(self.camera_calibration_cameras[self.camera_names[i]].T_origin_camera).dot(T_CB)
+                    break
+
+        if not ret_pnp:
+            glog.error("Failed to extract board transformation from the captured images.")
+            return False
+
+        x = np.zeros(6, dtype=float)
+        x[:3] = T_OB[:3, 3]
+        x[3:6] = Rot.from_matrix(T_OB[:3, :3]).as_rotvec()
+
+        self.apriltags_detections.append([rets_april, image_points, corners_observed, T_OB, x])
+        self.detections_invalidated = True
+        glog.info("Frames recorded successfully.")
+        return True
+
+    def optimize_error(self, max_iter=1000, conv_err=0.4, callback=None):
+        """
+        Perform optimization across all cameras, and across all captured tags
+        """
+        prev_calib = self.calibrated_success
+        self.calibrated_success = False
+        if len(self.apriltags_detections) == 0:
+            glog.warning("No images were recorded.")
+            return False
+
+        # prepare solution
+        if not prev_calib:
+            self.deltas = np.zeros(self.num_cameras * 6, dtype=np.float64)
+
+        glog.info(f"Performing optimization, Maximum iterations= {max_iter}, Convergence Error={conv_err}")
+        self.deltas = optimize.fmin(
+            reprojection_error,
+            self.deltas,
+            args=(
+                self.B_object_points,
+                self.apriltags_detections,
+                self.Ks,
+                self.Ts,
+                self.maps_x,
+                self.maps_y,
+                list(range(self.num_cameras)),  # optimize across all cameras
+                [0],  # fix transformation of the first camera
+                self.cam_type == "evs",
+                True,  # rmse_only
+            ),
+            maxiter=max_iter,
+            xtol=conv_err,
+            disp=True,
+            callback=callback,
+        )
+        self.deltas[:6] = 0  # make sure first camera doesn't have any transformation
+
+        self.calibrated_success = True
+        return True
+
+    def calibrated(self):
+        """
+        return whether or not the last optimization successed
+        """
+        return self.calibrated_success
+
+    def calc_reproj_error(self, include_cameras=[], use_optimization=False):
+        """
+        Calculate reprojection error.
+        include_cameras: to include set of cameras for optimization
+        use_optimization: use last optimization results to calculate the error or not
+
+        return: error in pixel
+        Will fail if number of apriltags detections ==0
+        """
+        return reprojection_error(
+            self.deltas,
+            self.B_object_points,
+            self.apriltags_detections,
+            self.Ks,
+            self.Ts,
+            self.maps_x,
+            self.maps_y,
+            include_cameras,
+            [0],
+            self.cam_type == "evs",
+        )
+
+    def check_calibration_quality(self, use_optimization=False):
+        """
+        Check calibration quality across cameras, and report the cameras that are deviated from the overall error by value (max_err)
+        use_optimization: use last optimization for the calculation
+
+        return: tuple of format (mean_err, array of [camera index, camera's err])
+        mean_err is the overall error across all cameras
+        """
+        reproj_cameras_err = []
+        if len(self.apriltags_detections) == 0:
+            return (np.nan, np.nan, np.nan), []
+        overall_rmse, overall_mean, overall_std = self.calc_reproj_error(
+            include_cameras=list(range(self.num_cameras)), use_optimization=use_optimization
+        )
+        for i in range(self.num_cameras):
+            cam_rmse, cam_mean, cam_std = self.calc_reproj_error(include_cameras=[i], use_optimization=use_optimization)
+            reproj_cameras_err.append([i, (cam_rmse, cam_mean, cam_std)])
+
+        return (overall_rmse, overall_mean, overall_std), reproj_cameras_err
+
+    def report_errors(self, use_optimization):
+        """
+        Print out the error report using function: check_calibration_quality
+        return same as the previous function
+        """
+        (overall_rmse, overall_mean, overall_std), reproj_cameras_err = self.check_calibration_quality(
+            use_optimization=use_optimization
+        )
+        log_func = (
+            glog.error if np.any(overall_std > 0.7) else (glog.warning if np.any(overall_std > 0.4) else glog.info)
+        )
+        log_func(
+            "Overall error %s %s"
+            % (
+                "using optimization" if use_optimization else "without calibration",
+                f": {overall_mean} +/- {overall_std}px (rmse: {overall_rmse:5.2f}px).\n",
+            )
+        )
+        for cam_idx, (cam_rmse, cam_mean, cam_std) in reproj_cameras_err:
+            error = "Unknown" if np.isnan(cam_rmse) else f"{cam_mean} +/- {cam_std}px (rmse: {cam_rmse:5.2f}px)"
+            log_func = glog.error if np.any(cam_std > 0.7) else (glog.warning if np.any(cam_std > 0.4) else glog.info)
+            log_func(f"Camera: {self.camera_names[cam_idx]} error={error}")
+        return (overall_rmse, overall_mean, overall_std), reproj_cameras_err
+
+    def perform_optimization(self, conv_err=0.4, iterations=1000, callback=None):
+        """
+        perform the optimization using the captured april tags
+        return: boolean whether the calibration success or not
+        """
+        self.report_errors(False)
+        if not self.optimize_error(max_iter=iterations, conv_err=conv_err, callback=callback):
+            glog.error("Failed to perform optimization!")
+            return False
+
+        self.report_errors(True)
+        return True
+
+    def export_calibration(self):
+        """
+        Export calibration configuration file
+        """
+        for i in range(1, self.num_cameras):
+            T_delta = np.eye(4, dtype=np.float64)
+            T_delta[:3, :3] = Rot.from_rotvec(self.deltas[i * 6 + 3 : i * 6 + 6]).as_matrix()
+            T_delta[:3, 3] = self.deltas[i * 6 : i * 6 + 3]
+            T = np.dot(T_delta, self.camera_calibration_cameras[self.camera_names[i]].T_camera_world)
+            self.camera_calibration_cameras[self.camera_names[i]].T_camera_world = T
+        self.camera_calibration.update_internal_parameters()
+        self.camera_calibration.write_parameters_to_file()
+        glog.info("Configuration file exported")
+
+
+##############################################
+iter_counter = 0
+
+
+def cb(x):
+    """Update iteration counter. Designed to be a callback function."""
+    global iter_counter  # pylint: disable = global-statement
+    iter_counter += 1
+    if iter_counter % 100 == 0:
+        glog.info(f"Current iteration: {iter_counter}")
+
+
+def main(config, cam_type, folder, frame_id, min_cameras, optimizer_iterations, conv_error, frequency):
+    context: CalibrationContext = CalibrationContext(config, cam_type, folder, frame_id)
+
+    # Main loop.
+    should_exit = False
+    if cam_type == "evs":
+        window_name = "EVS Camera Images"
+    else:
+        window_name = "APS Camera Images"
+    while not should_exit:
+        context.fetch_images()
+
+        img_combined = context.prepare_display_images()
+        commands = [
+            "'f' move to next frame",
+            "'b' move to previous frame",
+            "'c' to capture frame",
+            "'r' to reload calibration",
+            "'g' to clear grid detections",
+            "'e' to evaluate calibration",
+            "'o' to perform optimization",
+            "" if not context.calibrated() else "'u' to update calibration file",
+            "'q' to exit",
+        ]
+
+        for i in range(len(commands)):
+            cv2.putText(
+                img_combined,
+                commands[i],
+                (context.img_combined_width - 420, context.img_combined_height - 30 * len(commands) + 20 * (i + 1)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (85, 196, 196),
+                1,
+                cv2.LINE_AA,
+            )
+        cv2.imshow(window_name, img_combined)
+
+        # Process Input
+        k = cv2.waitKey(20)
+        if k == ord("f"):
+            context.frame_id += round(1000 / frequency)
+        if k == ord("b"):
+            context.frame_id -= round(1000 / frequency)
+        if k == ord("e"):
+            context.report_errors(False)
+        if k == ord("c"):
+            context.record_apriltags(min_cameras=min_cameras)
+        if k == ord("r"):
+            context.reload_calibration()
+        if k == ord("g"):
+            context.reset_aprilgrid_detections()
+        elif k == ord("o"):
+            # should_compute_transformation = True
+            global iter_counter  # pylint: disable = global-statement
+            iter_counter = 0
+            context.perform_optimization(conv_err=conv_error, callback=cb, iterations=optimizer_iterations)
+
+        if k == ord("q"):
+            should_exit = True
+        if k == ord("u") and context.calibrated():
+            context.export_calibration()
+
+    # Clean up.
+    cv2.destroyAllWindows()
+    context.destroy()
+    glog.info("Clean up successfully...")
+
+    return 0
+
+
+if __name__ == "__main__":
+    usage = """
+    Example
+    calibration_evaluate --config <config> --min_cameras <count>
+    """
+
+    # setup argument list
+    parser = argparse.ArgumentParser(description="Evaluate APS calibration.", usage=usage)
+    parser.add_argument(
+        "--config",
+        dest="config",
+        type=str,
+        help="Lab specific configuration, e.g. zrh00, zrh01, tyo02.",
+        required=True,
+    )
+    parser.add_argument("--cam_type", dest="cam_type", type=str, default="aps", help="Type of camera: aps or evs.")
+    parser.add_argument(
+        "--frequency", dest="frequency", type=int, default=4, help="Aquisition frequency needed when using recordings."
+    )
+    parser.add_argument("--folder", dest="folder", type=str, default="", help="Path to recorded image folder.")
+    parser.add_argument(
+        "--frame_id", dest="frame_id", type=int, default=-1, help="Frame id to be processed from recorded images."
+    )
+    parser.add_argument(
+        "--min_cameras",
+        dest="min_cameras",
+        type=int,
+        default=3,
+        required=True,
+        help="Minimum number of cameras to approve an aprilgrid detection.",
+    )
+    parser.add_argument(
+        "--conv_error",
+        dest="conv_error",
+        type=float,
+        default=0.4,
+        help="Convergence error when performing optimization.",
+    )
+    parser.add_argument(
+        "--optimizer_iterations",
+        dest="optimizer_iterations",
+        type=int,
+        default=3000,
+        help="Number of iterations the optimizer should perform.",
+    )
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
+
+    # parse argument list
+    try:
+        parsed = parser.parse_args()
+    except:
+        sys.exit(0)
+
+    #
+    ret = main(
+        parsed.config,
+        parsed.cam_type,
+        parsed.folder,
+        parsed.frame_id,
+        parsed.min_cameras,
+        parsed.optimizer_iterations,
+        parsed.conv_error,
+        parsed.frequency,
+    )
+    sys.exit(ret)

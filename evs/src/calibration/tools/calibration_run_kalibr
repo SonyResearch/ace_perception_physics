@@ -1,0 +1,369 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""
+Runs kalibr for intrinsics and extrinsics multi-camera calibration.
+
+It runs kalibr inside a docker (due to its dependencies),
+and convert formats forth and back
+"""
+
+import argparse
+import os
+import re
+import shutil
+import cv2
+
+import numpy
+import ace_yaml as yaml
+
+
+def parse_args():
+    """
+    Parses the input arguments
+    @return: Parsed argument struct
+    """
+
+    parser = argparse.ArgumentParser(description="Runs kalibr for intrinsics and extrinsics multi-camera calibration")
+    parser.add_argument(
+        "ace_recording_path",
+        type=str,
+        help="Ace recording path",
+    )
+    parser.add_argument(
+        "--kalibr_data_path",
+        type=str,
+        default="/tmp/kalibr",
+        help="Where to store kalibr temp data",
+    )
+    parser.add_argument(
+        "--camera_model",
+        type=str,
+        default="pinhole-radtan",
+        help="Camera type and distortion model, e.g. pinhole-radtan or pinhole-equi (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--tag_cols",
+        type=int,
+        default=6,
+        help="Number of columns in AprilTag's grid (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--tag_rows",
+        type=int,
+        default=6,
+        help="Number of rows in AprilTag's grid (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--tag_size",
+        type=float,
+        default=0.088,
+        help="Size of each AprilTag [in meters] (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--tag_spacing",
+        type=float,
+        default=0.3,
+        help="Spacing between AprilTags [relative to tag_size] (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--brightness_alpha",
+        type=float,
+        default=1.0,
+        help="The alpha correction of the images brightness (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--show-extraction",
+        action="store_true",
+        help="Show extractions while running kalibr (default: disabled)",
+    )
+    parser.add_argument(
+        "--sampling",
+        type=int,
+        default=1,
+        help="Sampling factor (default: %(default)s)",
+    )
+
+    return parser.parse_args()
+
+
+def prepare_kalibr_files(
+    kalibr_data_path,
+    tag_info,
+    camera_model="pinhole-equi",
+    brightness_alpha=1.0,
+    show_extraction=False,
+    sampling=1,
+):
+    """
+    Prepares kalibr's docker files
+    """
+    # pylint: disable=too-many-statements
+    # pylint: disable=too-many-branches
+    # define useful paths
+    kalibr_calib_data_path = os.path.join(kalibr_data_path, "calibration")
+
+    # add cam prefix to folders
+    for dirname in os.listdir(kalibr_calib_data_path):
+        if os.path.isdir(os.path.join(kalibr_calib_data_path, dirname)):
+            os.rename(
+                os.path.join(kalibr_calib_data_path, dirname),
+                kalibr_calib_data_path + "/cam" + dirname,
+            )
+
+    camera_names = [
+        dirname
+        for dirname in os.listdir(kalibr_calib_data_path)
+        if os.path.isdir(os.path.join(kalibr_calib_data_path, dirname))
+    ]
+    if len(camera_names) == 0:
+        raise ValueError("Unable to find any cameras in {}.".format(kalibr_calib_data_path))
+
+    print("Found {:d} cameras:".format(len(camera_names)))
+    for camera_name in camera_names:
+        print("  - {:s}".format(camera_name))
+
+    # load images for all cameras
+    print("Renaming images")
+
+    offset = "100000"
+    brightness_lut = numpy.clip(numpy.arange(256) ** (1.0 / brightness_alpha), 0, 255).astype(numpy.uint8)
+    for camera_name in camera_names:
+        print(" - %s ..." % camera_name)
+
+        files_count = 0
+        kalibr_calib_data_path_curr_cam = os.path.join(kalibr_calib_data_path, camera_name)
+        # Process each camera files separately (they are not always the same)
+        for filename in os.listdir(kalibr_calib_data_path_curr_cam):
+            if not os.path.isfile(os.path.join(kalibr_calib_data_path_curr_cam, filename)):
+                continue
+            basename, extension = os.path.splitext(filename)
+            image_id = re.search("\\d+", basename).group()
+            if "evs" in camera_name:
+                image_id = str(int(image_id) + 1).zfill(8)
+            src_path = os.path.join(kalibr_calib_data_path_curr_cam, filename)
+            dst_path = os.path.join(
+                kalibr_calib_data_path_curr_cam,
+                image_id + offset + extension,
+            )
+            if int(image_id) % sampling == 0:
+                # Only use the nth image
+                os.rename(src_path, dst_path)
+            else:
+                # And remove (from the temporary folder) the rest
+                os.remove(src_path)
+            if not numpy.isclose(brightness_alpha, 1.0):
+                cv2.imwrite(dst_path, cv2.LUT(cv2.imread(dst_path), brightness_lut))
+            print("%u" % files_count, end="\r")
+            files_count += 1
+
+        if files_count == 0:
+            raise ValueError(
+                f'Unable to find any files for camera {camera_name}! Are you pointing to the "ace recording" folder?'
+            )
+
+    print("done.")
+
+    # create kalibr calibration command
+    print("Creating calibration commands.")
+    with open(kalibr_calib_data_path + "/../kalibr_calibration_cmd.sh", "w", encoding="utf-8") as file_handler:
+        file_handler.write("kalibr_calibrate_cameras --bag /kalibr/calibration.bag ")
+
+        file_handler.write("--topics ")
+        for camera_name in camera_names:
+            file_handler.write("/" + camera_name + "/image_raw ")
+
+        file_handler.write("--model ")
+        for camera_name in camera_names:
+            file_handler.write("{:s} ".format(camera_model))
+
+        file_handler.write("--target /kalibr/ace_kalibr_target.yaml --approx-sync 0.0001 --dont-show-report")
+        if show_extraction:
+            file_handler.write(" --show-extraction")
+
+    # create
+    print("Creating calibration target.")
+    with open(os.path.join(kalibr_data_path, "ace_kalibr_target.yaml"), "w", encoding="utf-8") as file_handler:
+        file_handler.write("target_type: 'aprilgrid'\n")
+        file_handler.write("tagCols: {:d}\n".format(tag_info["cols"]))
+        file_handler.write("tagRows: {:d}\n".format(tag_info["rows"]))
+        file_handler.write("tagSize: {:f}\n".format(tag_info["size"]))
+        file_handler.write("tagSpacing: {:f}\n".format(tag_info["spacing"]))
+
+
+def convert_kalibr_results(calib_results_path):
+    """
+    Converter for kalibr results into ACE format.
+
+    Reads in the calibration results from kalibr and writes them into an ACE camera calibration yaml.
+    """
+
+    with open(os.path.join(calib_results_path, "calibration.yaml"), "r", encoding="utf-8") as file_handler:
+        calibration_input = yaml.full_load(file_handler)
+
+    with open(os.path.join(calib_results_path, "calibration.yaml"), "w", encoding="utf-8") as file_handler:
+        transform_cw = numpy.eye(4)
+        for camera_name, doc in calibration_input.items():
+            if camera_name != "cam0":
+                transform_cw = numpy.array(doc["T_cn_cnm1"], dtype=float).dot(transform_cw)
+
+            # manually writing yaml file due to styling
+            file_handler.write(doc["rostopic"][4:].partition("/")[0] + ":\n")
+            file_handler.write("  resolution: [{:d}, {:d}]\n".format(doc["resolution"][0], doc["resolution"][1]))
+
+            file_handler.write("  camera_model: {}\n".format(doc["camera_model"]))
+            file_handler.write("  camera_matrix:\n")
+            file_handler.write("  - [{:.17f}, 0.0, {:.17f}]\n".format(doc["intrinsics"][0], doc["intrinsics"][2]))
+            file_handler.write("  - [0.0, {:.17f}, {:.17f}]\n".format(doc["intrinsics"][1], doc["intrinsics"][3]))
+            file_handler.write("  - [0.0, 0.0, 1.0]\n")
+
+            file_handler.write("  distortion_model: {}\n".format(doc["distortion_model"]))
+            file_handler.write("  distortion_coeffs: [")
+            for i in range(len(doc["distortion_coeffs"])):
+                file_handler.write("{:.17f}".format(doc["distortion_coeffs"][i]))
+                if i < len(doc["distortion_coeffs"]) - 1:
+                    file_handler.write(", ")
+                else:
+                    file_handler.write("]\n")
+
+            file_handler.write("  T_CW:\n")
+            for i in range(4):
+                file_handler.write("  - [")
+
+                for j in range(4):
+                    file_handler.write("{:.17f}".format(transform_cw[i, j]))
+
+                    if j < 3:
+                        file_handler.write(", ")
+                    else:
+                        file_handler.write("]\n")
+
+            file_handler.write("  rotation: 0\n")
+        file_handler.write("T_WO:\n")
+        file_handler.write("  - [1.0, 0.0, 0.0, 0.0]\n")
+        file_handler.write("  - [0.0, 1.0, 0.0, 0.0]\n")
+        file_handler.write("  - [0.0, 0.0, 1.0, 0.0]\n")
+        file_handler.write("  - [0.0, 0.0, 0.0, 1.0]\n")
+
+
+def run_kalibr(
+    ace_recording_path,
+    kalibr_data_path,
+    tag_info,
+    camera_model="pinhole-equi",
+    brightness_alpha=1.0,
+    show_extraction=False,
+    sampling=1,
+):
+    """
+    Runs Kalibr on the multi-camera input images
+    """
+
+    # define useful paths
+    kalibr_calib_data_path = os.path.join(kalibr_data_path, "calibration")
+    aps_data_path = os.path.join(ace_recording_path, "aps")
+    evs_data_path = os.path.join(ace_recording_path, "evs")
+    calib_results_path = os.path.join(ace_recording_path, "calibration_results")
+
+    # Cleanup previous results
+    shutil.rmtree(calib_results_path, ignore_errors=True)
+
+    # Copy folder to kalibr_calib_data path
+    assert os.path.isdir(aps_data_path) or os.path.isdir(evs_data_path)
+    if os.path.isdir(aps_data_path):
+        shutil.copytree(aps_data_path, kalibr_calib_data_path)
+
+    if os.path.isdir(evs_data_path):
+        shutil.copytree(evs_data_path, kalibr_calib_data_path, dirs_exist_ok=True)
+
+    # Preparing kalibr files
+    print("Preparing kalibr file.")
+    prepare_kalibr_files(
+        kalibr_data_path,
+        tag_info=tag_info,
+        camera_model=camera_model,
+        brightness_alpha=brightness_alpha,
+        show_extraction=show_extraction,
+        sampling=sampling,
+    )
+
+    # Start docker
+    print("Starting docker.")
+    # TODO use docker package instead of system commands
+    os.system("xhost +local:root;")
+    os.system(
+        "docker run -dit \
+        --rm \
+        -v {0}:/kalibr \
+        -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+        -e DISPLAY=$DISPLAY \
+        -e QT_X11_NO_MITSHM=1\
+        --name kalibr \
+        stereolabs/kalibr:kinetic /bin/bash".format(
+            kalibr_data_path
+        )
+    )
+
+    # Create rosbag
+    print("Creating rosbag.")
+    os.system(
+        "docker exec kalibr /bin/bash -c 'export KALIBR_WORKSPACE=/kalibr_workspace/ && "
+        "source ros_entrypoint.sh && "
+        "kalibr_bagcreater --folder /kalibr/calibration --output-bag /kalibr/calibration.bag'"
+    )
+
+    # Run kalibr
+    print("Running kalibr.")
+    os.system(
+        "docker exec kalibr /bin/bash -c 'export KALIBR_WORKSPACE=/kalibr_workspace/ && "
+        "source ros_entrypoint.sh && "
+        "source /kalibr/kalibr_calibration_cmd.sh'"
+    )
+
+    # Copy results back
+    print("Copying calibration results to " + calib_results_path)
+    os.mkdir(calib_results_path)
+    os.system(
+        "docker exec kalibr /bin/bash -c 'mv camchain-kalibrcalibration.yaml calibration.yaml && "
+        " mv results-cam-kalibrcalibration.txt results.txt && "
+        " mv report-cam-kalibrcalibration.pdf report.pdf && "
+        " mv {calibration.yaml,results.txt,report.pdf} /kalibr/'"
+    )
+    for filename in ["calibration.yaml", "results.txt", "report.pdf"]:
+        shutil.copy(os.path.join(kalibr_data_path, filename), calib_results_path)
+
+    # Convert calibration results
+    print("Converting calibration results to ace format.")
+    convert_kalibr_results(calib_results_path)
+
+
+def cleanup(kalibr_data_path):
+    """
+    Stops docker and cleans temp data up
+    """
+
+    # Stop docker
+    os.system("xhost -local:root;")
+    print("Stopping docker.")
+    os.system("docker stop kalibr")
+
+    # Clean up
+    print("Cleaning up.")
+    shutil.rmtree(kalibr_data_path)
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    try:
+        run_kalibr(
+            args.ace_recording_path,
+            args.kalibr_data_path,
+            tag_info=dict(cols=args.tag_cols, rows=args.tag_rows, size=args.tag_size, spacing=args.tag_spacing),
+            camera_model=args.camera_model,
+            brightness_alpha=args.brightness_alpha,
+            show_extraction=args.show_extraction,
+            sampling=args.sampling,
+        )
+
+    finally:
+        cleanup(args.kalibr_data_path)

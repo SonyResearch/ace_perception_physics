@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""
+Write external trigger events from .raw recordings to .txt.
+"""
+
+import argparse
+from pathlib import Path
+
+import numpy as np
+from metavision_core.event_io.raw_reader import RawReader
+
+
+def parse_args():
+    """
+    Parses the input arguments
+    @return: Parsed argument struct
+    """
+    parser = argparse.ArgumentParser(
+        description='Reads external triggers from evs recording and stores them in a ".txt" file.'
+    )
+    parser.add_argument(
+        "raw_file",
+        type=str,
+        help="Path to raw recording.",
+    )
+    parser.add_argument(
+        "output_file",
+        type=str,
+        help="Path to output text file with timestamps for reconstruction.",
+    )
+    parser.add_argument(
+        "--min_dt_us",
+        type=int,
+        default=1000,
+        help="Minimum time in between trigger events [in us] (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--exposure_time_us",
+        type=int,
+        default=750,
+        help="Exposure time of APS [in us] (default: %(default)s).",
+    )
+
+    return parser.parse_args()
+
+
+def get_ext_trigger_timestamps(raw_file: str, min_dt_us: int):
+    """
+    Reads external trigger events from .raw file
+    @return: time and polarity of trigger events
+    """
+    # Check if raw file exists
+    assert Path(raw_file).exists()
+
+    # Check if raw file is .raw
+    assert Path(raw_file).suffix == ".raw"
+
+    raw_reader = RawReader(raw_file)
+
+    while not raw_reader.is_done():
+        try:
+            raw_reader.load_delta_t(1e5)
+        except Exception as error:  # pylint: disable=bare-except, broad-except
+            print(error)
+        finally:
+            print("Done reading trigger events")
+
+    ext_trigger_list = raw_reader.get_ext_trigger_events()
+    time = np.array(ext_trigger_list["t"])
+    pol = np.array(ext_trigger_list["p"])
+    time = time[pol == 1]
+    pol = pol[pol == 1]
+    if time.size > 1:
+        mask = np.append(np.diff(time) > min_dt_us, False)
+        pol = pol[mask]
+        time = time[mask]
+    print("Number of trigger events: {}".format(len(time)))
+
+    return {"t": time, "p": pol}
+
+
+def run_trigger_to_txt(raw_file: str, output_file: str, min_dt_us: int, exposure_time: int):
+    """
+    Reads external triggers from evs raw recording and stores them in a \".txt\" file."
+    """
+
+    # Check if output file is .txt
+    assert Path(output_file).suffix == ".txt"
+
+    # Extract triggers
+    triggers = get_ext_trigger_timestamps(raw_file, min_dt_us)
+    # Add half the exposure time to the trigger events for correct synchronization
+    np.savetxt(output_file, triggers["t"] + exposure_time / 2, "%i")
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    run_trigger_to_txt(args.raw_file, args.output_file, args.min_dt_us, args.exposure_time_us)

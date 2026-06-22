@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""
+Reconstructs grayscale images from an EVS recording.
+"""
+
+import argparse
+import os
+import pathlib
+import shutil
+
+
+def parse_args():
+    """
+    Parses the input arguments
+    @return: Parsed argument struct
+    """
+    parser = argparse.ArgumentParser(description="Reconstructs grayscale images from an EVS recording")
+    parser.add_argument(
+        "evs_recording_path",
+        type=str,
+        help="Path to EVS recording.",
+    )
+    parser.add_argument(
+        "master_serial_number",
+        type=str,
+        help="Serial number of master EVS camera.",
+    )
+    parser.add_argument(
+        "--evs_reconstruction_data_path",
+        type=str,
+        default="/tmp/evs_reconstruction",
+        help="Folder where temporary reconstruction data is stored (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="E2VID.pth.tar",
+        help='Name of model used for reconstruction, either "E2VID.pth.tar" or "E2VIDlightweight.pth.tar" (default: %(default)s).',
+    )
+
+    return parser.parse_args()
+
+
+def run_reconstruction(
+    evs_recording_path: str,
+    master_serial_number: str,
+    evs_reconstruction_data_path: str,
+    model: str,
+):
+    """
+    Run reconstruction on all cameras at time of external trigger events.
+    """
+
+    # Define useful paths
+    evs_tools_path = os.path.dirname(os.path.realpath(__file__))
+    e2vid_path = os.path.join(pathlib.Path(evs_tools_path).parent.parent.parent.parent.absolute(), "ext/e2vid")
+
+    # Clean up previous results
+    shutil.rmtree(evs_reconstruction_data_path, ignore_errors=True)
+
+    # Create folder
+    os.mkdir(evs_reconstruction_data_path)
+
+    # Compute trigger timestamps
+    print("Computing trigger timestamps.")
+    input_file = os.path.join(evs_recording_path, master_serial_number + ".raw")
+    trigger_file = os.path.join(evs_reconstruction_data_path, "trigger_timestamps.txt")
+    os.system(f"evs_trigger_to_txt {input_file} {trigger_file}")
+
+    # Find all cameras
+    print("Finding all cameras.")
+    model_file = os.path.join(e2vid_path, "pretrained/", model)
+    f = []
+    for dir_path, dir_names, file_names in os.walk(evs_recording_path):
+        f.extend(file_names)
+        break
+
+    serial_numbers = [s[-15:-4] for s in f if s.endswith(".raw")]
+    print("Found cameras:")
+    for serial_number in serial_numbers:
+        print(f"\t{serial_number}")
+
+    # Reconstruct images for all cameras
+    for serial_number in serial_numbers:
+        input_file = os.path.join(evs_recording_path, serial_number + ".raw")
+        print(f"Reconstructing images for camera {serial_number}")
+        os.system(
+            f"evs_run_reconstruction -i {input_file} -o {evs_recording_path} -c {model_file} --trigger_file {trigger_file} --dataset_name {serial_number}"
+        )
+        os.remove(os.path.join(evs_recording_path, serial_number, "timestamps.txt"))
+
+
+def clean_up(evs_reconstruction_data_path):
+    """
+    Clean up temporary data
+    """
+
+    # Clean up
+    print("Clean up.")
+    shutil.rmtree(evs_reconstruction_data_path)
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    try:
+        run_reconstruction(
+            args.evs_recording_path, args.master_serial_number, args.evs_reconstruction_data_path, args.model
+        )
+    finally:
+        clean_up(args.evs_reconstruction_data_path)
