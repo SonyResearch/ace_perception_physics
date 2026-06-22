@@ -1,0 +1,22 @@
+num_cams: 1
+serial_or_data_path_master: "s1_1.raw" #[path/string with serial number]
+serial_or_data_path_slave1: "s1_1.raw" #[path/string with serial number]
+aps_freq: 25 #[Hz]
+exposure_time_us: 1000 #[us]
+spin_period_us: 40000 #[us]
+visualize_subscriber: true
+save_data: false #[bool]
+from_file: True #[bool]
+height: 480 #[pixel]
+width: 640 #[pixel]
+bias_file_master: "" #[path]
+bias_file_slave1: "" #[path]
+measurement_noise_covariance: 0.000000001
+process_noise_covariance_0_0: 0.000000000000001
+process_noise_covariance_0_1: 0.0
+process_noise_covariance_1_0: 0.0
+process_noise_covariance_1_1: 0.000000000000001
+estimate_error_covariance_0_0: 0.000000001
+estimate_error_covariance_0_1: 0.0
+estimate_error_covariance_1_0: 0.0
+estimate_error_covariance_1_1: 0.0001

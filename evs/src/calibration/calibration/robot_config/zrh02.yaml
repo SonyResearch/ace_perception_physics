@@ -1,0 +1,68 @@
+lab_code: zrh00
+model: staubli_60l_with_calibration_tool
+robot_name: staubli_60l
+
+# Angles that we want the joints to take for spatial calibration
+targets: [
+    [
+        0.0,
+        0.0,
+        1.5129249095916757,
+        0.0,
+        0.0,
+        0.0,
+    ],
+    [
+        0.3,
+        0.8,
+        1.3129249095916757,
+        0.0,
+        -0.6,
+        0.0,
+    ],
+    [
+        -0.4,
+        0.7,
+        1.2129249095916757,
+        0.0,
+        -0.7,
+        0.0,
+    ],
+    [
+        0.0,
+        0.6,
+        1.0129249095916757,
+        0.0,
+        -0.9,
+        0.0,
+    ],
+    [
+        0.0,
+        1.1477854997551802,
+        0.9525823593139653,
+        0.0,
+        -0.8,
+        0.0,
+    ],
+]
+
+# Home position from which to start the oscillations
+home: [
+    0.0,
+    0.7729988504533467,
+    1.5129249095916757,
+    0.0,
+    -0.9009394149374895,
+    0.0,
+]
+
+number_of_joints: 6
+control_frequency: 400
+
+
+# Which joint we want to update during sinusoid generation and how much amplitude
+oscillations:
+    -   joint_idx: 4
+        amplitude: 0.2
+    -   joint_idx: 2
+        amplitude: 0.2

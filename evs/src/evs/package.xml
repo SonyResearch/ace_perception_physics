@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>evs</name>
+  <version>0.0.33</version>
+  <description>EVS package to run one or mutliple EVS cameras.</description>
+  <maintainer email="raphaela.kreiser@sony.com">SonyAI-Zurich</maintainer>
+  <license>Confidential, Copyright 2024, Sony AI, All rights reserved.</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <build_depend>ace_cmake_utils</build_depend>
+  <depend>ament_index_python</depend>
+  <depend version_gte="0.0.17">ace_setuptools</depend>
+  <depend>ace_loggers</depend>
+  <depend>ace_yaml</depend>
+  <depend>rclcpp</depend>
+  <depend>rclpy</depend>
+  <depend>base_parameters</depend>
+  <depend>ace_interfaces</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

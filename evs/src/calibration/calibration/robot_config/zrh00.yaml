@@ -1,0 +1,79 @@
+model: yr_musashi_with_calibration_tool
+robot_name: yr_musashi
+
+# Angles that we want the joints to take for spatial calibration
+targets: [
+    [
+        0.0,
+        1.6,
+        0.8,
+        -0.4,
+        0.3,
+        0.0,
+        0.0,
+        0.0,
+    ],
+    [
+        0.0,
+        1.8,
+        1.30,
+        -0.4,
+        -0.3,
+        0.0,
+        0.0,
+        0.0,
+    ],
+    [
+        0.0,
+        -1.65,
+        -1.2,
+        0.4,
+        -0.5,
+        0.0,
+        0.0,
+        0.0,
+    ],
+    [
+        0.0,
+        -1.9,
+        -1.30,
+        0.4,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+    ],
+    [
+        -0.45,
+        1.57,
+        1.57,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ],
+]
+
+# Home position from which to start the oscillations
+home: [
+    -0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+]
+
+number_of_joints: 8
+control_frequency: 1000
+
+
+# Which joint we want to update during sinusoid generation and how much amplitude
+oscillations:
+    -   joint_idx: 4
+        amplitude: 0.2
+    -   joint_idx: 2
+        amplitude: 0.2
