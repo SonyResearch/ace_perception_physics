@@ -19,21 +19,21 @@ the **observation-based pro-player pipeline**
 # 0. Build / source the workspace once (only needed if scripts use ROS bits)
 source ~/ws/src/project_ace_evs_ball/install/setup.bash
 
-# 1. Generate per-rally CSVs and 2D label H5s from labels/*.pt
+# 1. Extract APS shutter triggers (one triggers.txt per evs/ folder)
+python src/data_generation/tools/extract_triggers.py \
+    --root_dir /path/to/<root_folder>
+
+# 2. Generate per-rally CSVs and 2D label H5s from labels/*.pt
 python src/data_generation/label_pro_player_data.py \
     --root_dir /path/to/<recording_folder> \
     --cam_name evs00050026
-
-# 2. Extract APS shutter triggers (one triggers.txt per evs/ folder)
-python src/data_generation/tools/extract_triggers.py \
-    --root_dir /path/to/<recording_root_or_recording_folder>
 
 # 3. Slice events into per-rally H5 files using triggers + label CSVs
 python src/data_generation/label_pro_player_data_events.py \
     --root_dir /path/to/<recording_folder> \
     --cam_name evs00050026
 
-# 4. (Optional) sanity-check with a video
+# 4. (Optional) sanity-check with a video (or omit _zoomed for the full view.)
 python src/data_generation/convert_h5_to_video_zoomed.py \
     --root_dir /path/to/<recording_folder>/h5/evs00050026 \
     --target_dir /path/to/output/videos \
@@ -95,7 +95,6 @@ Each `.pt` file is a Python dict (load with
 | `ball_timestamps`      | `(N,)` float seconds   | APS frame timestamps (≈ 200 Hz, 5 ms cadence)        |
 | `est_ball_position`    | `(N, 3)` float         | Smoothed/estimated ball position (post-processed)    |
 | `events`               | list[dict]             | Contact/bounce events with `timestamp` keys          |
-| `racket_*` (`_0`/`_1`) | various                | Racket pose & timestamps; **stripped** for training  |
 | `sequence_number`      | int                    | Rally / sequence id                                  |
 
 Use [tools/strip_labels.py](tools/strip_labels.py) to drop the
@@ -105,7 +104,7 @@ Use [tools/strip_labels.py](tools/strip_labels.py) to drop the
 
 A single `*.yaml` at the recording root that carries per-camera intrinsics
 and extrinsics. It is parsed by `tools/interpolate_ball_positions.py`
-during `project_3d_to_2d` to back-project the 500 Hz 3D trajectory into
+during `project_3d_to_2d` to back-project the 1000 Hz 3D trajectory into
 the requested EVS camera frame.
 
 ### 2.3 ROS bag (`rosbag/*.db3`)
@@ -149,17 +148,18 @@ current working directory (or under `--plot_dir` when supplied).
 
 ### 3.1 Metadata CSV (`seq_<NNN>_<label>.csv`)
 
-One row per 500 Hz sample inside the rally. Columns:
+One row per 1000 Hz sample inside the rally. Columns:
 
 | Column                   | Type   | Notes                                                    |
 | ------------------------ | ------ | -------------------------------------------------------- |
 | `sequence_id`            | int    | Same value on every row (rally id, zero-padded in name)  |
 | `label_name`             | str    | Stem of the source `.pt` file                            |
 | `timestamps`             | float  | Seconds, 1 ms cadence after polyfit upsampling           |
-| `pos_{x,y,z}_label`      | float  | 3D ball position (world frame)                           |
-| `vel_{x,y,z}_label`      | float  | 3D ball velocity                                         |
 | `first_label_timestamp`  | float  | Rounded to 5 ms; rally start (APS-aligned)               |
 | `last_label_timestamp`   | float  | Rounded to 5 ms; rally end                               |
+| `pos_{x,y,z}_label`      | float  | 3D ball position (world frame)                           |
+| `vel_{x,y,z}_label`      | float  | 3D ball velocity                                         |
+| `orientation_{x,y,z}_label`      | float  | 3D ball velocity                                         |
 
 `label_pro_player_data_events.py` asserts `sequence_id`, `label_name`,
 `first_label_timestamp` and `last_label_timestamp` are **constant** in
@@ -364,11 +364,6 @@ or missing. Driven by a CSV with header
 Trims **events** using the `ms_to_idx` lookup, shifts `t0` accordingly
 (and rebases event times), and **labels** by simple millisecond slicing.
 Output mirrors the input directory tree under `--new_data_root`.
-
-### 5.6 Cleanup — `tools/strip_labels.py`
-
-In-place removal of every `racket_*` key from each `.pt` under any
-`label/` folder of a recordings root. Use `--dry-run` first.
 
 ---
 
