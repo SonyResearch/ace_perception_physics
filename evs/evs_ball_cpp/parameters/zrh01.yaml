@@ -1,0 +1,36 @@
+cameras:
+  master_serial_number: "00050500"
+  slave_serial_number_0: "00050086"
+  slave_serial_number_1: "00050243"
+  slave_serial_number_2: ""
+  number_cameras: 3
+crop_resolution:
+  height: 720
+  width: 1280
+  parts: 30
+  num_bbox: 5
+  channels: 2
+biases:
+  bias_diff: 0
+  bias_diff_off: 20
+  bias_diff_on: 20
+  bias_hpf: 0
+  bias_refr: 0
+erc_event_rate: 8000000
+algorithm:
+  model_path: "/home/ace/ws/project_ace/src/perception/velocity_prediction_evs_yolo/parameters/zrh01.trt"
+  dt_accumulate_us: 2000
+  batch_size: 1
+  number_streams: 3
+camera_names:
+  - evs00050500
+  - evs00050086
+  - evs00050243
+timeout_ms: 100
+use_variable_response_time: true
+camera_buffer_length: 5
+worker_queue_length: 5
+threshold: 0.6
+velocity_constant: 2500
+trigger_freq: 199.865 # Effective frequency of APS (reported by multic camera node). When using Ethercat, 200Hz can be used.
+trigger_exposure_time: 1000

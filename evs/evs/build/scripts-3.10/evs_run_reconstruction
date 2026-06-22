@@ -1,0 +1,196 @@
+#!/usr/bin/python3
+# pylint: disable = wrong-import-position, missing-function-docstring, missing-module-docstring, pointless-string-statement, invalid-name, too-many-branches, superfluous-parens, too-many-statements
+# Confidential, Copyright 2024, Sony AI, All rights reserved.
+import argparse
+import os
+import pathlib
+import sys
+
+import numpy as np
+import torch
+from evs.utilities.event_readers import FixedSizeTriggerEventReader
+from evs.utilities.image_reconstructor import ImageReconstructor
+
+e2vid_path = os.path.join(pathlib.Path(__file__).parent.parent.parent.parent.parent.absolute(), "ext/e2vid")
+sys.path.append(e2vid_path)
+
+from options.inference_options import set_inference_options
+from utils.inference_utils import events_to_voxel_grid, events_to_voxel_grid_pytorch
+from utils.loading_utils import get_device, load_model
+from utils.timers import Timer
+
+
+def parse_args():
+    """
+    Parses the input arguments
+    @return: Parsed argument struct
+    """
+    parser = argparse.ArgumentParser(description="Run image reconstruction from events.")
+    parser.add_argument(
+        "-c",
+        "--path_to_model",
+        required=True,
+        type=str,
+        help="Path to model weights.",
+    )
+    parser.add_argument(
+        "-i",
+        "--input_file",
+        required=True,
+        type=str,
+    )
+    parser.add_argument("--trigger_file", required=True, type=str)
+    parser.add_argument("--period", required=True, type=int, help="Period at which the frames are reconstructed.")
+    parser.add_argument("--fixed_duration", dest="fixed_duration", action="store_true")
+    parser.set_defaults(fixed_duration=False)
+    parser.add_argument(
+        "-N",
+        "--window_size",
+        default=322000,
+        type=int,
+        help="Size of each event window, in number of events. Will be ignored \
+            if --fixed_duration=True. (default: %(default)s)",
+    )
+    parser.add_argument(
+        "-T",
+        "--window_duration",
+        default=33.33,
+        type=float,
+        help="Duration of each event window, in milliseconds. Will be ignored \
+            if --fixed_duration=False. (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--num_events_per_pixel",
+        default=0.35,
+        type=float,
+        help="in case N (window size) is not specified, it will be automatically \
+            computed as N = width * height * num_events_per_pixel. (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--width",
+        default=1280,
+        type=int,
+    )
+    parser.add_argument(
+        "--height",
+        default=720,
+        type=int,
+    )
+    parser.add_argument(
+        "--skipevents",
+        default=0,
+        type=int,
+    )
+    parser.add_argument(
+        "--suboffset",
+        default=0,
+        type=int,
+    )
+    parser.add_argument(
+        "--compute_voxel_grid_on_cpu",
+        dest="compute_voxel_grid_on_cpu",
+        action="store_true",
+    )
+    parser.set_defaults(compute_voxel_grid_on_cpu=False)
+
+    set_inference_options(parser)
+
+    return parser.parse_args()
+
+
+def run_reconstruction(args):
+    # Read sensor size from the first first line of the event file.
+    width = args.width
+    height = args.height
+    print("Sensor size: {} x {}".format(width, height))
+
+    # Load model
+    model = load_model(args.path_to_model)
+    device = get_device(args.use_gpu)
+
+    model = model.to(device)
+    model.eval()
+
+    reconstructor = ImageReconstructor(model, height, width, model.num_bins, args)
+
+    """ Read chunks of events using Pandas """
+    # Loop through the events and reconstruct images
+    N = args.window_size
+    if not args.fixed_duration:
+        if N is None:
+            N = int(width * height * args.num_events_per_pixel)
+            print(
+                "Will use {} events per tensor (automatically estimated with num_events_per_pixel={:0.2f}).".format(
+                    N, args.num_events_per_pixel
+                )
+            )
+        else:
+            print("Will use {} events per tensor (user-specified)".format(N))
+            mean_num_events_per_pixel = float(N) / float(width * height)
+            if mean_num_events_per_pixel < 0.1:
+                print(
+                    "!!Warning!! the number of events used ({}) seems to be low compared to the sensor size. \
+                    The reconstruction results might be suboptimal.".format(
+                        N
+                    )
+                )
+            elif mean_num_events_per_pixel > 1.5:
+                print(
+                    "!!Warning!! the number of events used ({}) seems to be high compared to the sensor size. \
+                    The reconstruction results might be suboptimal.".format(
+                        N
+                    )
+                )
+
+    initial_offset = args.skipevents
+    sub_offset = args.suboffset
+    start_index = initial_offset + sub_offset
+
+    if args.compute_voxel_grid_on_cpu:
+        print("Will compute voxel grid on CPU.")
+
+    event_window_iterator = FixedSizeTriggerEventReader(
+        args.input_file, args.trigger_file  # , num_events=args.window_size
+    )
+
+    with Timer("Processing entire dataset"):
+        offset = True
+        flag_save = False
+        for event_window in event_window_iterator:
+            amount_events = len(event_window)
+            num_split = int(np.ceil(amount_events / args.window_size))
+            start_events = 0
+            for i in range(num_split):
+                current_num_events = np.ceil(amount_events / num_split)
+                num_events_reconst = int(np.min([amount_events, current_num_events]))
+                current_event_window = event_window[start_events : start_events + num_events_reconst]
+                start_events += num_events_reconst
+                if i == num_split - 1 and offset:
+                    offset = False
+                elif i == num_split - 1 and not (offset):
+                    flag_save = True
+                else:
+                    flag_save = False
+
+                with Timer("Building event tensor"):
+                    if args.compute_voxel_grid_on_cpu:
+                        event_tensor = events_to_voxel_grid(
+                            current_event_window, num_bins=model.num_bins, width=width, height=height
+                        )
+                        event_tensor = torch.from_numpy(event_tensor)
+                    else:
+                        event_tensor = events_to_voxel_grid_pytorch(
+                            current_event_window, num_bins=model.num_bins, width=width, height=height, device=device
+                        )
+                num_events_in_window = len(current_event_window)
+                reconstructor.update_reconstruction(
+                    event_tensor, start_index + num_events_in_window, flag_save, args.period
+                )
+
+                start_index += num_events_in_window
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    run_reconstruction(args)

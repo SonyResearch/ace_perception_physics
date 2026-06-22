@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>calibration</name>
+  <version>2.2.25</version>
+  <description>Calibration package containing calibration functionalities and parameters.</description>
+  <maintainer email="dario.brescianini@sony.com">SonyAI-Zurich</maintainer>
+  <license>Confidential, Copyright 2024, Sony AI, All rights reserved.</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>ace_cmake_utils</build_depend>
+  <depend>ament_index_python</depend>
+  <depend version_gte="0.0.20">ace_setuptools</depend>
+  <depend>ace_loggers</depend>
+  <depend version_gte="0.0.6">ace_yaml</depend>
+  <depend>ace_containers</depend>
+  <depend version_gte="1.0.2">base_parameters</depend>
+  <depend>pybind11_vendor</depend>
+  <depend>python_helpers</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
