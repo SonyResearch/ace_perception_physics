@@ -7,7 +7,6 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
-find_package(ace_interfaces 0.0.1 REQUIRED)
 find_package(base_parameters 1.0.0 REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(glog REQUIRED)
