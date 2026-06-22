@@ -7,7 +7,7 @@ find_package(base_parameters 1.0.0 REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(glog REQUIRED)
 find_package(OpenCV 4.8 REQUIRED)
-find_package(ace_yaml 0.0.1 REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 # find python before pybind11
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
@@ -21,7 +21,8 @@ add_library(${PROJECT_NAME} SHARED src/camera_calibration_parameters.cpp src/rob
 
 target_link_libraries(${PROJECT_NAME} glog gflags)
 
-ament_target_dependencies(${PROJECT_NAME} ace_yaml ace_containers base_parameters OpenCV)
+target_link_libraries(${PROJECT_NAME} yaml-cpp)
+ament_target_dependencies(${PROJECT_NAME} ace_containers base_parameters OpenCV)
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(ace_containers base_parameters)

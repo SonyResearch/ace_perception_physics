@@ -1,7 +1,7 @@
 // Confidential, Copyright 2024, Sony AI, All rights reserved.
 #pragma once
 
-#include "ace_yaml/ace_yaml.hpp"
+#include <yaml-cpp/yaml.h>
 
 class BaseParameters {
  public:

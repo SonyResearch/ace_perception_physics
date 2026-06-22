@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "ace_loggers/ace_loggers.hpp"
-#include "ace_yaml/ace_yaml.hpp"
+#include <glog/logging.h>
+#include <yaml-cpp/yaml.h>
 
 template <typename T>
 int LoadInterfaceParameters(const YAML::Node& params, const std::vector<std::string>& param_list,

@@ -68,7 +68,7 @@ bool BaseParameters::PrintParameters() const {
 
 bool BaseParameters::ReadParametersFromFile() {
   try {
-    yaml_node_ = ace_yaml::LoadFile(yaml_path_);
+    yaml_node_ = YAML::LoadFile(yaml_path_);
   } catch (YAML::Exception &e) {
     LOG(ERROR) << e.what() << "\n";
     return false;
@@ -84,7 +84,7 @@ bool BaseParameters::ReadParametersFromFile() {
 
 bool BaseParameters::ReadParametersFromString(const std::string &yaml_str) {
   try {
-    yaml_node_ = ace_yaml::LoadString(yaml_str);
+    yaml_node_ = YAML::LoadString(yaml_str);
   } catch (YAML::Exception &e) {
     LOG(ERROR) << e.what() << "\n";
     return false;

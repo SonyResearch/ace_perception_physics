@@ -27,7 +27,8 @@ include_directories(include)
 # set library
 add_library(${PROJECT_NAME} SHARED src/camera_parameters.cpp src/multi_camera_parameters.cpp)
 
-ament_target_dependencies(${PROJECT_NAME} ace_yaml base_parameters)
+ament_target_dependencies(${PROJECT_NAME} base_parameters)
+target_link_libraries(${PROJECT_NAME} yaml-cpp)
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 
@@ -37,7 +38,7 @@ target_link_libraries(metavision_recorder_standalone glog gflags)
 add_dependencies(metavision_recorder_standalone ${PROJECT_NAME})
 
 target_link_libraries(metavision_recorder_standalone ${PROJECT_NAME} Metavision::HAL_discovery Threads::Threads)
-ament_target_dependencies(metavision_recorder_standalone ace_yaml rclcpp)
+ament_target_dependencies(metavision_recorder_standalone rclcpp)
 
 # pybind interface
 ament_python_install_package(${PROJECT_NAME})

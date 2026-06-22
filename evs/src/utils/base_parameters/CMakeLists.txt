@@ -4,7 +4,7 @@ project(base_parameters CXX)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(glog REQUIRED)
-find_package(ace_yaml 0.0.1 REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 # find python before pybind11
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
@@ -18,11 +18,11 @@ add_library(${PROJECT_NAME} SHARED src/base_parameters.cpp)
 
 target_link_libraries(${PROJECT_NAME} glog gflags)
 
-ament_target_dependencies(${PROJECT_NAME} ace_yaml)
+target_link_libraries(${PROJECT_NAME} yaml-cpp)
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 
-ament_export_dependencies(ace_yaml)
+ament_export_dependencies(yaml-cpp)
 
 # Install Python modules
 ament_python_install_package(${PROJECT_NAME})
