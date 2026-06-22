@@ -1,5 +1,5 @@
 # pylint: skip-file
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription

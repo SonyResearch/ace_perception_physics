@@ -4,15 +4,15 @@
   <name>data_generation</name>
   <version>0.0.1</version>
   <description>Data generation tools for event-based vision table tennis dataset.</description>
-  <maintainer email="asude.aydin@sony.com">SonyAI-Zurich</maintainer>
-  <license>Confidential, Copyright 2024, Sony AI, All rights reserved.</license>
+  <maintainer email="maintainer@example.com">Project Maintainers</maintainer>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclpy</depend>
   <depend>calibration</depend>
   <depend>evs</depend>
-  <depend>evs_ball_interfaces</depend>
+  <depend>evs_interfaces</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

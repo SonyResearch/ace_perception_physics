@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable = wrong-import-position, missing-function-docstring, missing-module-docstring, pointless-string-statement, invalid-name, too-many-branches, superfluous-parens, too-many-statements
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 import argparse
 import os
 import pathlib

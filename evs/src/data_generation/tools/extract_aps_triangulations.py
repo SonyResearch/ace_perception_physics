@@ -3,10 +3,10 @@
 @brief Extracts 3D ball position and rotation from ROSbag.
 
 @file pos_triang_multi.py
-@author Claudio Fanconi (claudioandrea.fanconi@sony.com), Asude Aydin (asude.aydin@sony.com)
+@author Claudio Fanconi, Asude Aydin
 @date 2024
 @version 0.0
-@copyright Confidential, Copyright 2024, Sony AI, All rights reserved.
+@copyright SPDX-License-Identifier: MIT
 """
 
 from pathlib import Path
@@ -17,7 +17,7 @@ import rosbag2_py
 from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 
-from evs_ball_interfaces.msg import PosesWithCovariance
+from evs_interfaces.msg import PosesWithCovariance
 
 
 def get_rosbag_options(path, serialization_format="cdr"):

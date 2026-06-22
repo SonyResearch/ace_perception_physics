@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """
 Runs kalibr for intrinsics and extrinsics multi-camera calibration.
 

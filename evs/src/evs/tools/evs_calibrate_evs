@@ -1,5 +1,5 @@
 #!/bin/bash
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 set -ex
 
 echo "What is the EVS recording path?"

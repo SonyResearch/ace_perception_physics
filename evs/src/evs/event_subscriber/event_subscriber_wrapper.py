@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # type: ignore
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """Event subscriber wrapper, synch. to APS clock, and publishing of corrected timestamps."""
 
 import time

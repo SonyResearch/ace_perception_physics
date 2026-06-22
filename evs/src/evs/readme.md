@@ -16,4 +16,4 @@ You can also set the path to a ‘bias_file’ in order to set the biases of the
 
 The code will create as many .raw recordings as there are cameras or data recordings to replay from. The output data is automatically stored as “out_m.raw” for the master camera and “out_s(slave index).raw” for slave cameras.
 
-For more information how to set up the EVS camera system, refer to: <a href="https://sonyai.atlassian.net/wiki/spaces/SON/pages/2593718312/Guide+for+EVS+cameras+set-up" target="_blank">EVS camera system</a>
+For more information on how to set up the EVS camera system, refer to the camera vendor's documentation.

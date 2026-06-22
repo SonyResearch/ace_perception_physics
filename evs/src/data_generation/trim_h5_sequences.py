@@ -4,10 +4,10 @@
 @brief A script for data post processing to remove events and corresponding labels from h5 files.
 
 @file trim_h5_sequences
-@author Asude Aydin (asude.aydin@sony.com)
+@author Asude Aydin
 @date 2024
 @version 0.0
-@copyright Confidential, Copyright 2024, Sony AI, All rights reserved.
+@copyright SPDX-License-Identifier: MIT
 """
 
 import csv

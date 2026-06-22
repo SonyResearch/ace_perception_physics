@@ -1,4 +1,4 @@
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 # pylint: disable = consider-iterating-dictionary, consider-using-dict-items, line-too-long, too-many-instance-attributes, wildcard-import, wrong-import-position, too-many-arguments
 """Reconstructs images from events using the E2VID library and a pretrained RNN."""
 

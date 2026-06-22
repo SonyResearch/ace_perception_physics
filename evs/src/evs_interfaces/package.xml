@@ -4,8 +4,8 @@
   <name>evs_interfaces</name>
   <version>0.1.0</version>
   <description>This package provides the custom messages and services.</description>
-  <maintainer email="raphaela.kreiser@sony.com">SonyAI-Zurich</maintainer>
-  <license>Confidential, Copyright 2025, Sony AI, All rights reserved.</license>
+  <maintainer email="maintainer@example.com">Project Maintainers</maintainer>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

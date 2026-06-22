@@ -14,7 +14,7 @@ from pathlib import Path
 import torch
 
 DEFAULT_ROOT = Path(
-    "/media/chaydina/T71/asude_overhead_evs_recordings/Univ_2024-05-29_recording_upload"
+    "/path/to/recordings"
 )
 LABEL_DIR_NAME = "labels"
 RACKET_PREFIX = ("player", "racket", "human")

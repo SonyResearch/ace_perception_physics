@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """
 Stepped robot table calibration.
 1. Move the robot to a desired location, wait, record from robot and triangulation topic.

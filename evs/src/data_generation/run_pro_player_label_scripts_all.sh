@@ -3,16 +3,16 @@
 @brief Bash script for labeling all professional player data.
 
 @file run_pro_player_label_scripts_all.py
-@author Asude Aydin (asude.aydin@sony.com)
+@author Asude Aydin
 @date 2024
 @version 0.0
-@copyright Confidential, Copyright 2024, Sony AI, All rights reserved.
+@copyright SPDX-License-Identifier: MIT
 """
 
 # Define variables for the root directory containing sets and camera names
-SETS_DIR="/home/EU/chaydina/Documents/VICTAS_2024-05-10_test_recording"
+SETS_DIR="/path/to/recordings/VICTAS_2024-05-10_test_recording"
 CAM_NAMES=("evs00050028" "evs00050027" "evs00050026" "evs00050034")
-PLOT_DIR="/home/EU/chaydina/Documents/VICTAS_2024-05-10_test_recording/analysis"
+PLOT_DIR="/path/to/recordings/VICTAS_2024-05-10_test_recording/analysis"
 
 # Iterate over each subdirectory in the SETS_DIR
 for ROOT_DIR in "$SETS_DIR"/*; do

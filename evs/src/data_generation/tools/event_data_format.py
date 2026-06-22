@@ -5,10 +5,10 @@
 @brief Data class for events.
 
 @file event_data_format.py
-@author Asude Aydin (asude.aydin@sony.com)
+@author Asude Aydin
 @date 2024
 @version 0.0
-@copyright Confidential, Copyright 2024, Sony AI, All rights reserved.
+@copyright SPDX-License-Identifier: MIT
 """
 
 

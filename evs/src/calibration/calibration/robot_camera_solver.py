@@ -5,7 +5,7 @@ Solver for camera-robot calibration.
 Works by aligning prerecorded trajectories of the ball from both the robot and the cameras.
 """
 # pylint: disable = line-too-long, redefined-outer-name, invalid-name
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 
 import ace_yaml as yaml
 import evs.src.calibration.calibration.calibrator_utils as calibrator_utils

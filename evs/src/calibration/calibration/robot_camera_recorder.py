@@ -6,7 +6,7 @@ Listens to the position of the ball as published by the robot and camera system.
 Note: stop the recorder before stopping any of the two publishers
 """
 # pylint: disable = line-too-long, import-error, no-name-in-module
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 
 import re
 import time

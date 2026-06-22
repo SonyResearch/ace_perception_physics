@@ -1,4 +1,4 @@
-// Confidential, Copyright 2024, Sony AI, All rights reserved.
+// SPDX-License-Identifier: MIT
 // Drop-in replacement for ace_containers::IndexedMap using std::map.
 #pragma once
 

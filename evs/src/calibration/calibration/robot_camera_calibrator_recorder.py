@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """
 Collects multi-camera and robot observations for calibration purposes.
 

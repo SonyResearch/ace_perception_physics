@@ -1,4 +1,4 @@
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """Provide observations collection utilities for multi-camera and robot."""
 
 import functools

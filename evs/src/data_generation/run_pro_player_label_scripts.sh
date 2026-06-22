@@ -4,14 +4,14 @@
 @brief Example script for labeling pro player data in h5 format.
 
 @file run_pro_player_visualizations.sh
-@author Asude Aydin (asude.aydin@sony.com)
+@author Asude Aydin
 @date 2024
 @version 0.0
-@copyright Confidential, Copyright 2024, Sony AI, All rights reserved.
+@copyright SPDX-License-Identifier: MIT
 """
 
 # Define variables for the root directory and camera name
-ROOT_DIR="/home/EU/chaydina/Documents/VICTAS_2024-05-10_test_recording/20240510_101340_uechi_vs_li_set1"
+ROOT_DIR="/path/to/recordings/VICTAS_2024-05-10_test_recording/20240510_101340_uechi_vs_li_set1"
 CAM_NAME="evs00050026"
 
 # Run the first Python script

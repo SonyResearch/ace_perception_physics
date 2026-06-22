@@ -1,4 +1,4 @@
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """Provide some visualization & UI functionalities for calibration scripts."""
 
 import functools

@@ -22,7 +22,7 @@ except ImportError:
     )
 
 DEFAULT_ROOT = Path(
-    "/media/chaydina/T71/asude_overhead_evs_recordings/Univ_2024-05-29_recording_upload"
+    "/path/to/recordings"
 )
 
 ROSBAG_DIR_NAME = "rosbag"

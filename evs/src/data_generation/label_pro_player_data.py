@@ -2,10 +2,10 @@
 @brief Main script for labeling proffesional player data.
 
 @file label_pro_player_data.py
-@author Asude Aydin (asude.aydin@sony.com)
+@author Asude Aydin
 @date 2026
 @version 0.0
-@copyright Confidential, Copyright 2026, Sony AI, All rights reserved.
+@copyright SPDX-License-Identifier: MIT
 """
 
 import argparse
@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument(
         "--root_dir",
         type=str,
-        default="/media/chaydina/T71/asude_overhead_evs_recordings/Univ_2024-05-29_recording_upload/20240529_140358_sakamoto_vs_murano_set_1",
+        default="/path/to/recordings",
         help="Path to folder containing calibration file and evs, labels, and rosbag folder.",
         # required=True,
     )

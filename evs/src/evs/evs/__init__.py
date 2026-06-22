@@ -1,4 +1,4 @@
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """
 EVS camera module.
 

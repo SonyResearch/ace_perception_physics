@@ -1,6 +1,6 @@
 """Event frame generator."""
 # pylint: disable = line-too-long
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 
 import numpy as np
 

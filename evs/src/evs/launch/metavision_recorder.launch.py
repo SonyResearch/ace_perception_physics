@@ -1,4 +1,4 @@
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """This file will launch a Metavision camera recorder."""
 
 from ament_index_python.packages import get_package_share_directory

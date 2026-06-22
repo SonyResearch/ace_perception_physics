@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable = too-many-locals, unused-variable, too-many-branches, too-many-statements
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """
 Test for EVS synchronization using an LED panel.
 """

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 """
 Calibrate table coordinates using ball placed on the corners
 inside models folder, you can print BallBoardMount*.stl file and glue the ball into its slot

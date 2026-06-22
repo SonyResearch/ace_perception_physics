@@ -2,10 +2,10 @@
 @brief Two H5 Writer classes for iteratively saving events and labels into corresponding h5 files.
 
 @file h5_writer
-@author Asude Aydin (asude.aydin@sony.com)
+@author Asude Aydin
 @date 2024
 @version 0.0
-@copyright Confidential, Copyright 2024, Sony AI, All rights reserved.
+@copyright SPDX-License-Identifier: MIT
 """
 
 import weakref

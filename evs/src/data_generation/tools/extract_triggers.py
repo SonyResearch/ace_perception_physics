@@ -5,10 +5,10 @@
 @brief Extract APS, EVS time synchronization triggers.
 
 @file extract_triggers.py
-@author Asude Aydin (asude.aydin@sony.com)
+@author Asude Aydin
 @date 2024
 @version 0.0
-@copyright Confidential, Copyright 2024, Sony AI, All rights reserved.
+@copyright SPDX-License-Identifier: MIT
 """
 
 import argparse
@@ -16,14 +16,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-DEFAULT_ROOT = Path(
-    "/media/chaydina/T71/asude_overhead_evs_recordings/Univ_2024-05-29_recording_upload"
-)
+DEFAULT_ROOT = Path("/path/to/recordings")
 EVS_DIR_NAME = "evs"
 TRIGGER_FILE_NAME = "triggers.txt"
 # Path to the trigger-extraction tool inside the source tree (NOT the install/ share dir).
-DEFAULT_TRIGGER_TOOL = Path(
-    "/home/EU/chaydina/ws/src/project_ace_evs_ball/src/evs/tools/evs_trigger_to_txt"
+# Resolved relative to this file: <repo>/src/evs/tools/evs_trigger_to_txt
+DEFAULT_TRIGGER_TOOL = (
+    Path(__file__).resolve().parents[2] / "evs" / "tools" / "evs_trigger_to_txt"
 )
 
 

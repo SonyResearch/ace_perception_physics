@@ -1,4 +1,4 @@
-# Confidential, Copyright 2024, Sony AI, All rights reserved.
+# SPDX-License-Identifier: MIT
 # pylint: disable = wrong-import-position, unused-variable, consider-using-with, line-too-long
 """Event reader. Iterates over events according to duration or event size."""
 
