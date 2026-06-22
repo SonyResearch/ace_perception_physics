@@ -2,10 +2,15 @@ cmake_minimum_required(VERSION 3.5)
 project(data_generation)
 
 find_package(ament_cmake REQUIRED)
-find_package(ament_cmake_python REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-# Resolve Python install dir (e.g. lib/python3.10/site-packages)
-ament_cmake_python_get_python_install_dir()
+# Compute site-packages path relative to install prefix
+execute_process(
+  COMMAND "${Python3_EXECUTABLE}" -c
+    "import sys; print('lib/python{}.{}/site-packages'.format(*sys.version_info[:2]))"
+  OUTPUT_VARIABLE PYTHON_INSTALL_DIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 
 # Install the data_generation directory as an importable Python package so
 # that "from data_generation.tools.xxx import ..." works after colcon install.
