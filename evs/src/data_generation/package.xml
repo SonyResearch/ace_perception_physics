@@ -8,7 +8,6 @@
   <license>Confidential, Copyright 2024, Sony AI, All rights reserved.</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <buildtool_depend>ament_cmake_python</buildtool_depend>
 
   <depend>rclpy</depend>
   <depend>calibration</depend>
