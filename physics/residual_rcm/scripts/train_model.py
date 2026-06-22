@@ -39,7 +39,7 @@ class CustomLoss(nn.Module):
     def __init__(self, cfg: DictConfig):
         super().__init__()
 
-    def forward(self, output: torch.Tensor, target: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, output: torch.Tensor, target: torch.Tensor, scale=1.0) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Computes the custom loss value given the model output and target values.
         """
