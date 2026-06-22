@@ -4,7 +4,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "ace_loggers/ace_loggers.hpp"
+#include <glog/logging.h>
 
 BaseParameters::BaseParameters(const std::string parameters_name) : parameters_name_(parameters_name) {
   if (!google::IsGoogleLoggingInitialized()) {

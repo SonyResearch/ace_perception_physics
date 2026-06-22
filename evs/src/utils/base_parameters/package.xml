@@ -7,9 +7,7 @@
   <maintainer email="dario.brescianini@sony.com">SonyAI-Zurich</maintainer>
   <license>Confidential, Copyright 2024, Sony AI, All rights reserved.</license>
 
-  <build_depend>ace_cmake_utils</build_depend>
   <depend version_gte="0.0.17">ace_setuptools</depend>
-  <depend>ace_loggers</depend>
   <depend>ace_yaml</depend>
   <buildtool_depend>ament_cmake_ros</buildtool_depend>
   <buildtool_depend>ament_cmake</buildtool_depend>

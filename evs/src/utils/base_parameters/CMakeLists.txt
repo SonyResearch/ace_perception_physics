@@ -2,22 +2,20 @@ cmake_minimum_required(VERSION 3.5)
 project(base_parameters CXX)
 
 # find dependencies
-find_package(ace_cmake_utils REQUIRED)
-ace_find_package(ament_cmake REQUIRED)
-ace_find_package(ace_loggers REQUIRED)
-ace_find_package(ace_yaml 0.0.1 REQUIRED)
+find_package(ament_cmake REQUIRED)
+find_package(glog REQUIRED)
+find_package(ace_yaml 0.0.1 REQUIRED)
 
 # find python before pybind11
-ace_find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-ace_find_package(pybind11 CONFIG REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+find_package(pybind11 CONFIG REQUIRED)
 
 # set include directories
 include_directories(include)
 
 # set library
-ace_add_library(${PROJECT_NAME} SHARED src/base_parameters.cpp)
+add_library(${PROJECT_NAME} SHARED src/base_parameters.cpp)
 
-ament_target_dependencies(${PROJECT_NAME} ace_loggers)
 target_link_libraries(${PROJECT_NAME} glog gflags)
 
 ament_target_dependencies(${PROJECT_NAME} ace_yaml)
@@ -42,7 +40,7 @@ install(
   DESTINATION include)
 
 if(BUILD_TESTING)
-  ace_find_package(ament_cmake_pytest REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
 
   file(GLOB_RECURSE PY_TEST_FILES "${PROJECT_SOURCE_DIR}/test/test_*.py")
   foreach(TEST ${PY_TEST_FILES})
