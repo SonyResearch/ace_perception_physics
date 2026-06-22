@@ -8,7 +8,7 @@ Works by aligning prerecorded trajectories of the ball from both the robot and t
 # Confidential, Copyright 2024, Sony AI, All rights reserved.
 
 import ace_yaml as yaml
-import calibrator_utils
+import evs.src.calibration.calibration.calibrator_utils as calibrator_utils
 import click
 import matplotlib.pyplot as plt
 import numpy as np

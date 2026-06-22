@@ -11,7 +11,7 @@ import logging
 import os
 
 import coloredlogs
-import recorder_utils
+import evs.src.calibration.calibration.recorder_utils as recorder_utils
 
 log = logging.getLogger(__name__)
 

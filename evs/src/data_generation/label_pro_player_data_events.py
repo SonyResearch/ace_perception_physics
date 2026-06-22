@@ -18,10 +18,10 @@ from tqdm import tqdm
 
 from evs.utilities.event_readers import FixedSizeTriggerEventReader
 
-from tools.event_data_format import Events
-from tools.extract_aps_triangulations import extract_first_aps_frameid
-from tools.extract_triggers import extract_triggers
-from tools.h5_writer import H5Writer
+from evs.src.data_generation.tools.event_data_format import Events
+from evs.src.data_generation.tools.extract_aps_triangulations import extract_first_aps_frameid
+from evs.src.data_generation.tools.extract_triggers import extract_triggers
+from evs.src.data_generation.tools.h5_writer import H5Writer
 
 
 def parse_args():

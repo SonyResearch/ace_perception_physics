@@ -16,8 +16,8 @@ from pathlib import Path
 
 import fire
 import h5py
-from tools.event_data_format import Events
-from tools.h5_writer import H5Writer, H5WriterLabel
+from evs.src.data_generation.tools.event_data_format import Events
+from evs.src.data_generation.tools.h5_writer import H5Writer, H5WriterLabel
 
 
 def find_filenames_by_sequence(directory, sequence_number):

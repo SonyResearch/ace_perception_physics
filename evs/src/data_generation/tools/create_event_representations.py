@@ -20,7 +20,7 @@ import pandas as pd
 from calibration import python_module as calibration
 from evs.utilities.event_readers import FixedSizeTriggerEventReader
 
-from tools.e2frame import events_to_frame, events_to_timesurface
+from evs.src.data_generation.tools.e2frame import events_to_frame, events_to_timesurface
 
 
 def merge_csv_files(folder_path: str, columns: Optional[List[str]] = None) -> pd.DataFrame:

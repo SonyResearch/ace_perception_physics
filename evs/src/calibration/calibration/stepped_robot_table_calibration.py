@@ -30,7 +30,7 @@ import numpy as np
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from bullet_simulation.automatic_collision_detector import DetectorType
-from calibrator_utils import compute_affine_transformation
+from evs.src.calibration.calibration.calibrator_utils import compute_affine_transformation
 from closed_loop_execution.closed_loop_wrapper import (
     BallState,
     ClosedLoopWrapper,

@@ -22,7 +22,7 @@ import numpy as np
 from tqdm import tqdm
 from matplotlib import animation
 from matplotlib.patches import Circle
-from tools.e2frame import events_to_timesurface
+from evs.src.data_generation.tools.e2frame import events_to_timesurface
 
 
 def parse_args():
