@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.5)
 project(calibration CXX)
 
 # find dependencies
-find_package(ace_containers 1.0.0 REQUIRED)
 find_package(base_parameters 1.0.0 REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(glog REQUIRED)
@@ -22,10 +21,10 @@ add_library(${PROJECT_NAME} SHARED src/camera_calibration_parameters.cpp src/rob
 target_link_libraries(${PROJECT_NAME} glog gflags)
 
 target_link_libraries(${PROJECT_NAME} yaml-cpp)
-ament_target_dependencies(${PROJECT_NAME} ace_containers base_parameters OpenCV)
+ament_target_dependencies(${PROJECT_NAME} base_parameters OpenCV)
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_dependencies(ace_containers base_parameters)
+ament_export_dependencies(base_parameters)
 
 # pybind interface
 ament_python_install_package(${PROJECT_NAME})
@@ -36,7 +35,7 @@ add_dependencies(python_module ${PROJECT_NAME})
 
 target_link_libraries(python_module PRIVATE ${PROJECT_NAME})
 
-ament_target_dependencies(python_module PUBLIC ace_containers base_parameters OpenCV)
+ament_target_dependencies(python_module PUBLIC base_parameters OpenCV)
 
 # install package
 install(DIRECTORY include/ DESTINATION include)
