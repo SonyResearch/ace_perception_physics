@@ -5,19 +5,14 @@ event-camera (EVS) recordings + APS-derived ball trajectories into the
 time-aligned `.h5` event/label pairs consumed by training and evaluation in
 this repo.
 
-This document complements [README.md](README.md): the README describes the
-historical reformatting tool (`process_raw_files.py`); this file focuses on
-the **observation-based pro-player pipeline**
-(`label_pro_player_data*.py`, `extract_triggers.py`, `trim_h5_sequences.py`,
-`convert_h5_to_video_zoomed.py`).
-
 ---
 
 ## 1. Quick start
 
 ```bash
 # 0. Build / source the workspace once (only needed if scripts use ROS bits)
-source ~/ws/src/project_ace_evs_ball/install/setup.bash
+colcon build --symlink-install --cmake-args --packages-up-to data_generation 
+source ~/evs/install/setup.bash
 
 # 1. Extract APS shutter triggers (one triggers.txt per evs/ folder)
 python src/data_generation/tools/extract_triggers.py \
@@ -39,11 +34,6 @@ python src/data_generation/convert_h5_to_video_zoomed.py \
     --target_dir /path/to/output/videos \
     --accumulation_time 5 --debug
 
-# 5. (Optional) trim shifted sequences listed in a CSV
-python src/data_generation/trim_h5_sequences.py \
-    --old_data_root /path/to/h5_root \
-    --new_data_root /path/to/h5_root_trimmed \
-    --trim_csv_path /path/to/trims.csv
 ```
 
 For batch processing across many recordings & cameras, see
@@ -78,7 +68,7 @@ Multiple recordings are typically grouped under a "recordings root":
 └── ...
 ```
 
-`extract_triggers.py` and `tools/strip_labels.py` accept a
+`extract_triggers.py` accept a
 **recordings root** and recurse into every nested `evs/` or `label/`
 folder; the labeling scripts (`label_pro_player_data*.py`) operate on
 **one recording folder** at a time.
@@ -97,15 +87,11 @@ Each `.pt` file is a Python dict (load with
 | `events`               | list[dict]             | Contact/bounce events with `timestamp` keys          |
 | `sequence_number`      | int                    | Rally / sequence id                                  |
 
-Use [tools/strip_labels.py](tools/strip_labels.py) to drop the
-`racket_*` keys in place across an entire recordings root before training.
 
 ### 2.2 Calibration YAML
 
-A single `*.yaml` at the recording root that carries per-camera intrinsics
-and extrinsics. It is parsed by `tools/interpolate_ball_positions.py`
-during `project_3d_to_2d` to back-project the 1000 Hz 3D trajectory into
-the requested EVS camera frame.
+A single `*.yaml` at the recording root that carries per-camera intrinsics and extrinsics. 
+It is parsed by `tools/interpolate_ball_positions.py` during `project_3d_to_2d` to back-project the 1000 Hz 3D trajectory into the requested EVS camera frame.
 
 ### 2.3 ROS bag (`rosbag/*.db3`)
 
@@ -196,9 +182,7 @@ Written by `H5Writer`
 | `ms_to_idx`   | `(K,)`  | u4    | Cumulative index lookup, one per millisecond  |
 
 `ms_to_idx[k]` is the first index `i` for which `t[i] / 1e3 >= k`,
-i.e. the start of millisecond `k`. This is what
-[trim_h5_sequences.py](trim_h5_sequences.py) uses to slice events by
-millisecond ranges.
+i.e. the start of millisecond `k`. 
 
 The `Events` dataclass enforcing these dtypes lives in
 [tools/event_data_format.py](tools/event_data_format.py).
@@ -254,15 +238,32 @@ and EVS events**. The mechanism is:
 
 Tokyo recordings (older dataset) had inconsistent APS frame intervals
 that did **not** match the EVS triggers exactly, producing a constant
-shift between event and label across a rally. Fix downstream with
-`--label_offset` in `convert_h5_to_video_zoomed.py` and/or
-[trim_h5_sequences.py](trim_h5_sequences.py) for permanent correction.
+shift between event and label across a rally. 
 
 ---
 
 ## 5. Pipeline stages in detail
 
-### 5.1 Step 1 — `label_pro_player_data.py`
+### 5.1 Step 1 — `tools/extract_triggers.py`
+
+Input: any directory tree that contains `evs/` folders with `*.raw`.
+Output: one `triggers.txt` per `evs/` folder.
+
+```bash
+python src/data_generation/tools/extract_triggers.py \
+    --root_dir <recordings_root_or_one_recording> \
+    --trigger_tool /path/to/workspace/src/evs/tools/evs_trigger_to_txt
+```
+
+The script recursively finds every `evs/` folder and runs
+`evs_trigger_to_txt` against each `.raw` inside, appending all triggers
+into a single `evs/triggers.txt`. Folders that already contain a
+`triggers.txt` are skipped (toggle by editing the early-return).
+
+The `--trigger_tool` default points at the source-tree script, **not**
+the install/share copy, so you don't need to rebuild the workspace.
+
+### 5.2 Step 2 — `label_pro_player_data.py`
 
 Input: `labels/*.pt`, `*.yaml` calibration.
 Output: `metadata/<cam>/*.csv`, `h5/<cam>/*_label.h5`, plots.
@@ -296,25 +297,6 @@ CLI flags worth knowing:
 | `--polyfit_degree`  | 3       | Per-segment polynomial degree                      |
 | `--min_samples`     | 10      | Minimum APS samples per segment                    |
 | `--plot_dir`        | cwd     | (Used by batch script) where to dump diagnostics   |
-
-### 5.2 Step 2 — `tools/extract_triggers.py`
-
-Input: any directory tree that contains `evs/` folders with `*.raw`.
-Output: one `triggers.txt` per `evs/` folder.
-
-```bash
-python src/data_generation/tools/extract_triggers.py \
-    --root_dir <recordings_root_or_one_recording> \
-    --trigger_tool /path/to/workspace/src/evs/tools/evs_trigger_to_txt
-```
-
-The script recursively finds every `evs/` folder and runs
-`evs_trigger_to_txt` against each `.raw` inside, appending all triggers
-into a single `evs/triggers.txt`. Folders that already contain a
-`triggers.txt` are skipped (toggle by editing the early-return).
-
-The `--trigger_tool` default points at the source-tree script, **not**
-the install/share copy, so you don't need to rebuild the workspace.
 
 ### 5.3 Step 3 — `label_pro_player_data_events.py`
 
@@ -354,16 +336,6 @@ Renders an MP4 per `seq_*.h5` overlaying:
 `--label_offset` shifts label index vs. event window to compensate for
 clock drift on bad recordings.
 
-### 5.5 Trimming — `trim_h5_sequences.py`
-
-Removes leading/trailing milliseconds where labels are visibly shifted
-or missing. Driven by a CSV with header
-`Recording name, Camera name, Sequence Number, Trim Start, Trim End`
-(empty cells default to 0 / -1).
-
-Trims **events** using the `ms_to_idx` lookup, shifts `t0` accordingly
-(and rebases event times), and **labels** by simple millisecond slicing.
-Output mirrors the input directory tree under `--new_data_root`.
 
 ---
 
@@ -418,7 +390,6 @@ For visualization across many cameras, see
 | `AssertionError: not Path(outfile).exists()`                            | Output H5 already exists; remove it or write to a fresh `--root_dir`.                                |
 | `assert (np.diff(gt_frameid) == 1).all()` fails                         | Missing/duplicate APS frames in the rally. Inspect the `.pt` `ball_timestamps`; consider re-labeling.|
 | `assert last_label_ts > last_aps_ts`                                    | Rounding mismatch around rally end. Check 5 ms vs. 1 ms rounding alignment.                          |
-| Visualization shows constant shift between ball and event blob          | Clock drift; pass `--label_offset` to `convert_h5_to_video_zoomed.py` or trim with `trim_h5_sequences.py`. |
 | `est_mean > 0.01` (rally silently skipped)                              | Smoothed vs. raw 3D ball position diverges ≥ 1 cm; expected for noisy rallies.                       |
 
 ---
@@ -434,7 +405,4 @@ For visualization across many cameras, see
 | [tools/h5_writer.py](tools/h5_writer.py)                                            | 1, 3       | `H5Writer` (events) and `H5WriterLabel`                  |
 | [tools/event_data_format.py](tools/event_data_format.py)                            | 3          | `Events` dataclass with dtype contracts                  |
 | [tools/interpolate_ball_positions.py](tools/interpolate_ball_positions.py)          | 1          | Polyfit, finite-diff, 3D→2D projection                   |
-| [tools/strip_labels.py](tools/strip_labels.py)                            | cleanup    | Drop `racket_*` keys from every `label/*.pt`             |
 | [convert_h5_to_video_zoomed.py](convert_h5_to_video_zoomed.py)                      | viz        | Per-sequence MP4 with event time-surface + labels        |
-| [trim_h5_sequences.py](trim_h5_sequences.py)                                        | post       | CSV-driven millisecond trimming of events + labels       |
-| [process_raw_files.py](process_raw_files.py)                                        | legacy     | Original `.mat` → `.h5` reformatter (see [README.md](README.md)) |
