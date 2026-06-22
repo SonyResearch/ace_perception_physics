@@ -17,7 +17,7 @@ import rosbag2_py
 from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 
-from ace_interfaces.msg import PosesWithCovariance
+from evs_ball_interfaces.msg import PosesWithCovariance
 
 
 def get_rosbag_options(path, serialization_format="cdr"):
@@ -57,10 +57,12 @@ def extract_first_aps_frameid(rosbag_path: str, target_path: str):
     reader_detect.set_filter(storage_filter)
 
     # Create a map for quicker lookup
-    type_map = {topic_types[i].name: topic_types[i].type for i in range(len(topic_types))}
+    type_map = {
+        topic_types[i].name: topic_types[i].type for i in range(len(topic_types))
+    }
 
     while reader_detect.has_next():
-        (topic, data, _) = reader_detect.read_next()
+        topic, data, _ = reader_detect.read_next()
         msg_type = get_message(type_map[topic])
         msg = deserialize_message(data, msg_type)
 
@@ -97,7 +99,9 @@ def extract_aps_points(rosbag_path: str, csv_target_path: str) -> None:
     reader_detect.set_filter(storage_filter)
 
     # Create a map for quicker lookup
-    type_map = {topic_types[i].name: topic_types[i].type for i in range(len(topic_types))}
+    type_map = {
+        topic_types[i].name: topic_types[i].type for i in range(len(topic_types))
+    }
 
     triangulated_points: dict = {
         "frame_id": [],
@@ -112,7 +116,7 @@ def extract_aps_points(rosbag_path: str, csv_target_path: str) -> None:
     }
 
     while reader_detect.has_next():
-        (topic, data, _) = reader_detect.read_next()
+        topic, data, _ = reader_detect.read_next()
         msg_type = get_message(type_map[topic])
         msg = deserialize_message(data, msg_type)
 

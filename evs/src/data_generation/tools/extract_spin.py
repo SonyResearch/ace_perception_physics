@@ -12,7 +12,7 @@ import pandas as pd
 import rosbag2_py
 from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
-from ace_interfaces.msg import PosesWithCovariance
+from evs_ball_interfaces.msg import PosesWithCovariance
 from tools.ros_utils import get_rosbag_options
 
 

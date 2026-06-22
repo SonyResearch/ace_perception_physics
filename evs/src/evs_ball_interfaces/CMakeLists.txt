@@ -16,6 +16,7 @@ rosidl_generate_interfaces(
   # messages
   "msg/ImagePoint.msg"
   "msg/PerceptionHeader.msg"
+  "msg/PosesWithCovariance.msg"
   "msg/VelocitiesImage.msg"
   "msg/VelocityImage.msg"
   DEPENDENCIES
