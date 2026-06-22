@@ -1,5 +1,4 @@
-# This represents the pose in 3D space with uncertainty.
-
-uint32 num_cameras
-PointCovariance covariance
+# A pose (position + orientation) with covariance and camera count
 geometry_msgs/Pose pose
+evs_ball_interfaces/Covariance covariance
+uint32 num_cameras

@@ -12,7 +12,7 @@
   <depend>rclpy</depend>
   <depend>calibration</depend>
   <depend>evs</depend>
-  <depend>ace_interfaces</depend>
+  <depend>evs_ball_interfaces</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

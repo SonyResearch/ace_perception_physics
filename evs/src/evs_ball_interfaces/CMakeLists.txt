@@ -14,8 +14,10 @@ find_package(std_msgs REQUIRED)
 rosidl_generate_interfaces(
   ${PROJECT_NAME}
   # messages
+  "msg/Covariance.msg"
   "msg/ImagePoint.msg"
   "msg/PerceptionHeader.msg"
+  "msg/PoseWithCovariance.msg"
   "msg/PosesWithCovariance.msg"
   "msg/VelocitiesImage.msg"
   "msg/VelocityImage.msg"
