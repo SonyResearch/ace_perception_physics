@@ -84,7 +84,7 @@ bool BaseParameters::ReadParametersFromFile() {
 
 bool BaseParameters::ReadParametersFromString(const std::string &yaml_str) {
   try {
-    yaml_node_ = YAML::LoadString(yaml_str);
+    yaml_node_ = YAML::Load(yaml_str);
   } catch (YAML::Exception &e) {
     LOG(ERROR) << e.what() << "\n";
     return false;
