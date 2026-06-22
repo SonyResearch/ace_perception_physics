@@ -1,6 +1,3 @@
-# pylint: disable=too-many-locals, too-many-statements, too-many-branches, invalid-name
-# TODO(asude): clean pylint
-
 """
 @brief This script visualizes .h5 events with corresponding labels by generating videos around the RoI.
 

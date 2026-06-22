@@ -1,12 +1,10 @@
-# pylint: disable=too-many-locals, too-many-statements
-# TODO(asude): clean pylint
 """
 @brief This cscript visualizes .h5 events with corresponding labels.
 
-@author Asude Aydin (asude.aydin@sony.com)
+@author Asude Aydin
 @date 2024
 @version 0.0
-@copyright Confidential, Copyright 2024, Sony AI, All rights reserved.
+@copyright SPDX-License-Identifier: MIT
 """
 
 import argparse
@@ -37,44 +35,25 @@ def parse_args():
         required=True,
     )
     parser.add_argument(
-        "--recording_name",
-        type=str,
-        help="Name of the EVS recording",
-        required=True,
-    )
-    parser.add_argument(
-        "--camera_name",
-        type=str,
-        help="Name of the camera which is being processed",
-        required=True,
-    )
-    parser.add_argument(
         "--target_dir",
         type=str,
         help="Path where the output video shall be stored",
         required=True,
     )
     parser.add_argument(
+        "--sequence_name",
+        type=str,
+        help="Name of the sequence to be converted into a video. \
+        If unspecified, all sequences in a folder will be converted.",
+        required=False,
+    )
+
+    parser.add_argument(
         "--scale_factor",
         type=float,
         help="Scale factor of the velocity quiver",
         required=False,
         default=3,
-    )
-
-    parser.add_argument(
-        "--start_idx",
-        type=int,
-        help="Video sequence number for start",
-        required=False,
-        default=0,
-    )
-    parser.add_argument(
-        "--end_idx",
-        type=int,
-        help="Video sequence number for end",
-        required=False,
-        default=-1,
     )
 
     args = parser.parse_args()
@@ -85,9 +64,8 @@ def parse_args():
 def visualize_representations(
     source_dir: Path,
     target_dir: Path,
+    sequence_name: str,
     scale_factor: float,
-    start_idx: int,
-    end_idx: int,
 ) -> None:
     """
     Create a movie from the representations, and localisation + velocity data. Saves the video at the target path.
@@ -95,9 +73,8 @@ def visualize_representations(
     Args:
         `source_dir` (str): source directory, where all the .mat files are saved
         `target_dir` (str): path where the movie sould be stored
+        `sequence_name` (str): Specific sequence name to be converted into video.
         `scale_factor` (float): Scaling factor of the velocity quiver
-        `start_idx` (int): length of the movie. Full if the value is 0
-        `end_idx` (int): length of the movie. Full if the value is -1
     Note:
         This script might take a long time depending on the size and number of the images
     Returns:
@@ -161,7 +138,9 @@ def visualize_representations(
 
         ax1.add_patch(true_circle)
 
-        ax1.set_title(f"Recording: {recording} Camera: {camera} Traj ID: {traj_id} Frame ID: {frame_id}")
+        ax1.set_title(
+            f"Recording: {recording} Camera: {camera} Traj ID: {traj_id} Frame ID: {frame_id}"
+        )
 
         ax2.imshow(image, origin="lower")
         ax2.scatter(position[0], position[1], marker="x", color="orange")
@@ -185,13 +164,16 @@ def visualize_representations(
 
     # Extract sequence names
     label_files_sorted = sorted(glob.glob(f"{source_dir}/*_label.h5"))
-    if end_idx == -1:
-        end_idx = len(label_files_sorted)
-    label_files = label_files_sorted[int(start_idx) : int(end_idx)]
 
-    for label_file_name in label_files:
+    for label_file_name in label_files_sorted:
+        if sequence_name is not None:
+            if sequence_name != Path(label_file_name).stem.replace("_label", ""):
+                continue
+
         # Create figure
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 7), gridspec_kw={"width_ratios": [2, 1]})
+        fig, (ax1, ax2) = plt.subplots(
+            1, 2, figsize=(24, 7), gridspec_kw={"width_ratios": [2, 1]}
+        )
 
         # Initialise empty frames
         frames = []
@@ -219,14 +201,12 @@ def visualize_representations(
         if target_dir_new.exists():
             continue
 
-        frame_id_start = int(splitted_list[-1].split("_")[2])
-        frame_id_end = int(splitted_list[-1].split("_")[3])
         # Iterate through every frame and save video
         for idx in tqdm(
             range(len(h5_label["points"])),
             desc=f"Creating video {mp4_file_name}",
         ):
-            frame_id = frame_id_start + idx * 2
+            # frame_id = frame_id_start + idx * 2
 
             ms_start = h5_events["ms_to_idx"][idx]
             if idx == len(h5_label["points"]) - 1:
@@ -267,11 +247,9 @@ def visualize_representations(
                 "recording": recording,
                 "camera": camera,
                 "traj_id": traj_id,
-                "frame_id": frame_id,
+                "frame_id": idx,
             }
             frames.append(frame_data)
-
-        assert frame_id_end == frame_id
 
         # Create the animation using FuncAnimation with blit=True for efficiency
         start_time = time.time()
@@ -299,20 +277,17 @@ def main():  # NOQA D103
     args = parse_args()
 
     root_dir = Path(args.root_dir)
-    recording_name = args.recording_name
-    camera_name = args.camera_name
     target_dir = Path(args.target_dir)
 
     # Check and create target path for saving videos
-    source_dir = root_dir / recording_name / camera_name
+    source_dir = root_dir
     target_dir.mkdir(parents=True, exist_ok=True)
 
     visualize_representations(
         source_dir,
         target_dir,
+        sequence_name=args.sequence_name,
         scale_factor=args.scale_factor,
-        start_idx=args.start_idx,
-        end_idx=args.end_idx,
     )
 
 
