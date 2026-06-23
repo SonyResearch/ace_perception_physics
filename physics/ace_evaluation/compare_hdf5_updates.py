@@ -167,7 +167,7 @@ def compare_h5_files(file_path1, file_path2, atol, rtol, verbose):
                 "_Parametric_7p",
                 "_cpp_p7p",
                 "_cpp_tangential",
-                "/simulated_trajectories/",
+                "simulated_trajectories",
             )
             keys1 = {k for k in keys1 if not any(pat in k for pat in purged_patterns)}
             keys2 = {k for k in keys2 if not any(pat in k for pat in purged_patterns)}

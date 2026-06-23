@@ -46,84 +46,78 @@ def get_magnus_estimate_v2(v, w):
     v_flat = v_arr.ravel()
     w_flat = w_arr.ravel()
 
-    # Reference velocities and their fitted parameters
+    # Reference velocities and their fitted parameters (matching C++ PhysicsParameters.hpp exactly)
     v_refs = np.array([2.0, 3.5, 7.5, 10.5, 13.5, 17.0])
 
-    # Linear region parameters (m1, c1)
-    m1_refs = np.array([0.0, -0.0011, -0.0008, -0.000658, -0.00056, -0.000448])
-    c1_refs = np.array([0.08, 0.31, 0.37, 0.375, 0.383, 0.371])
-
-    # Break point (second data point for each velocity)
+    m1_refs = np.array([0.0, -0.0011, -0.000775, -0.000658, -0.00056, -0.000448])
+    c1_refs = np.array([0.08, 0.31, 0.366, 0.375, 0.383, 0.371])
     w_break_refs = np.array([150.0, 200.0, 350.0, 440.0, 550.0, 650.0])
 
-    # Quadratic region parameters (a, b, c)
-    def solve_quadratic_coeffs(pts):
-        """Solve for a, b, c given 3 points [(w1,cm1), (w2,cm2), (w3,cm3)]"""
-        w = np.array([p[0] for p in pts])
-        cm = np.array([p[1] for p in pts])
-        A = np.column_stack([w**2, w, np.ones_like(w)])
-        return np.linalg.solve(A, cm)
+    a_refs = np.array([
+        -1.8518518518518517e-07,
+        -1.6666666666666665e-07,
+        -2.0000000000000002e-07,
+        -2.6041666666666690e-07,
+        -3.5714285714285724e-07,
+        -1.0000000000000002e-07
+    ])
+    b_refs = np.array([
+        -1.2962962962962976e-04,
+        -3.3333333333333576e-05,
+        1.7000000000000013e-04,
+        3.6458333333333426e-04,
+        5.3571428571428634e-04,
+        2.3000000000000009e-04
+    ])
+    c_refs = np.array([
+        9.8333333333333356e-02,
+        0.1,
+        5.8749999999999969e-02,
+        -2.2500000000000186e-02,
+        -8.9285714285714691e-02,
+        -3.7500000000000061e-02
+    ])
 
-    # Data points for quadratic region (last 3 points for each velocity)
-    quad_pts = {
-        2.0:  [(150, 0.08), (300, 0.055), (450, 0.025)],
-        3.5:  [(200, 0.09), (300, 0.08), (500, 0.05)],
-        7.5:  [(350, 0.09), (500, 0.095), (750, 0.075)],
-        10.5: [(440, 0.085), (600, 0.1), (800, 0.095)],
-        13.5: [(550, 0.075), (750, 0.105), (900, 0.095)],
-        17.0: [(650, 0.08), (750, 0.095), (900, 0.11)],
-    }
-
-    # Compute coefficients at reference velocities
-    coeffs_20 = solve_quadratic_coeffs(quad_pts[2.0])
-    coeffs_35 = solve_quadratic_coeffs(quad_pts[3.5])
-    coeffs_75 = solve_quadratic_coeffs(quad_pts[7.5])
-    coeffs_105 = solve_quadratic_coeffs(quad_pts[10.5])
-    coeffs_135 = solve_quadratic_coeffs(quad_pts[13.5])
-    coeffs_170 = solve_quadratic_coeffs(quad_pts[17.0])
-
-    a_refs = np.array([coeffs_20[0], coeffs_35[0], coeffs_75[0], coeffs_105[0], coeffs_135[0], coeffs_170[0]])
-    b_refs = np.array([coeffs_20[1], coeffs_35[1], coeffs_75[1], coeffs_105[1], coeffs_135[1], coeffs_170[1]])
-    c_refs = np.array([coeffs_20[2], coeffs_35[2], coeffs_75[2], coeffs_105[2], coeffs_135[2], coeffs_170[2]])
-
-    def interp_extrap_low(v, v_refs, y_refs, extrap_low=True):
-        """Interpolate with linear extrapolation for v < v_refs[0] only."""
-        result = np.interp(v, v_refs, y_refs)
-        mask_low = v < v_refs[0]
-        if np.any(mask_low):
-            if extrap_low:
-                slope_low = (y_refs[1] - y_refs[0]) / (v_refs[1] - v_refs[0])
-                result[mask_low] = y_refs[0] + slope_low * (v[mask_low] - v_refs[0])
+    def interp(x, x_refs, y_refs, extrap_low=False):
+        result = np.zeros_like(x)
+        
+        # Below first reference
+        mask_low = x < x_refs[0]
+        if extrap_low:
+            slope = (y_refs[1] - y_refs[0]) / (x_refs[1] - x_refs[0])
+            result[mask_low] = y_refs[0] + slope * (x[mask_low] - x_refs[0])
+        else:
+            result[mask_low] = y_refs[0]
+            
+        # Above last reference
+        mask_high = x >= x_refs[-1]
+        result[mask_high] = y_refs[-1]
+        
+        # In between
+        for i in range(len(x_refs) - 1):
+            mask_mid = (x >= x_refs[i]) & (x < x_refs[i + 1])
+            alpha = (x[mask_mid] - x_refs[i]) / (x_refs[i + 1] - x_refs[i])
+            result[mask_mid] = y_refs[i] + alpha * (y_refs[i + 1] - y_refs[i])
+            
         return result
 
-    # Linear region parameters: keep constant for v < 2.0
-    m1 = interp_extrap_low(v_flat, v_refs, m1_refs, extrap_low=False)
-    c1 = interp_extrap_low(v_flat, v_refs, c1_refs, extrap_low=False)
-    w_break = interp_extrap_low(v_flat, v_refs, w_break_refs, extrap_low=False)
+    m1 = interp(v_flat, v_refs, m1_refs, extrap_low=False)
+    c1 = interp(v_flat, v_refs, c1_refs, extrap_low=False)
+    w_break = interp(v_flat, v_refs, w_break_refs, extrap_low=False)
 
-    # Quadratic region parameters: extrapolate for v < 2.0
-    a = interp_extrap_low(v_flat, v_refs, a_refs, extrap_low=True)
-    b = interp_extrap_low(v_flat, v_refs, b_refs, extrap_low=True)
-    c = interp_extrap_low(v_flat, v_refs, c_refs, extrap_low=True)
+    a = interp(v_flat, v_refs, a_refs, extrap_low=True)
+    b = interp(v_flat, v_refs, b_refs, extrap_low=True)
+    c = interp(v_flat, v_refs, c_refs, extrap_low=True)
 
-    # Ensure quadratic coefficient 'a' is always negative (concave down)
     a = np.minimum(a, -1e-10)
-
-    # Ensure w_break stays positive
     w_break = np.maximum(w_break, 0.0)
 
-    # Compute C_M using piecewise function
     cm_linear = m1 * w_flat + c1
     cm_quadratic = a * w_flat**2 + b * w_flat + c
     cm = np.where(w_flat <= w_break, cm_linear, cm_quadratic)
-
-    # Ensure non-negative
     cm = np.maximum(cm, 0.0)
 
-    # Reshape to original shape
     cm = cm.reshape(original_shape)
-
-    # Return scalar if input was scalar
     if scalar_input:
         return float(cm.ravel()[0])
     return cm

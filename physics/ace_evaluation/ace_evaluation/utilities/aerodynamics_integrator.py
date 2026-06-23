@@ -153,80 +153,9 @@ def get_magnus_coefficient_new(v: float, w: float) -> float:
 
     Uses the **same hardcoded constants** as the C++ header.
     """
-    # Reference velocities
-    V_REFS = np.array([2.0, 3.5, 7.5, 10.5, 13.5, 17.0])
+    from ace_evaluation.utilities.aerodynamics_utilities import get_magnus_estimate_v2
+    return get_magnus_estimate_v2(v, w)
 
-    # Linear region: C_M = m1*w + c1
-    M1_REFS = np.array([0.0, -0.0011, -0.000775, -0.000658, -0.00056, -0.000448])
-    C1_REFS = np.array([0.08, 0.31, 0.366, 0.375, 0.383, 0.371])
-
-    # Break point (w where we switch from linear to quadratic)
-    W_BREAK_REFS = np.array([150.0, 200.0, 350.0, 440.0, 550.0, 650.0])
-
-    # Quadratic region: C_M = a*w^2 + b*w + c (pre-computed, matching C++)
-    # v=2.0:  pts: (150, 0.08), (300, 0.055), (450, 0.025)
-    A_REFS = np.array([
-        -1.8518518518518517e-07,  # v=2.0
-        -1.6666666666666665e-07,  # v=3.5
-        -2.0000000000000002e-07,  # v=7.5  (pts: 350,0.095; 500,0.095; 750,0.075)
-        -2.6041666666666690e-07,  # v=10.5
-        -3.5714285714285724e-07,  # v=13.5
-        -1.0000000000000002e-07,  # v=17.0
-    ])
-    B_REFS = np.array([
-        -1.2962962962962976e-04,  # v=2.0
-        -3.3333333333333576e-05,  # v=3.5
-         1.7000000000000013e-04,  # v=7.5
-         3.6458333333333426e-04,  # v=10.5
-         5.3571428571428634e-04,  # v=13.5
-         2.3000000000000009e-04,  # v=17.0
-    ])
-    C_REFS = np.array([
-         9.8333333333333356e-02,  # v=2.0
-         0.1,                     # v=3.5
-         5.8749999999999969e-02,  # v=7.5
-        -2.2500000000000186e-02,  # v=10.5
-        -8.9285714285714691e-02,  # v=13.5
-        -3.7500000000000061e-02,  # v=17.0
-    ])
-
-    def interp_param(x, x_refs, y_refs, extrap_low):
-        """Interpolate matching C++ logic exactly."""
-        n = len(x_refs)
-        if x < x_refs[0]:
-            if extrap_low:
-                slope = (y_refs[1] - y_refs[0]) / (x_refs[1] - x_refs[0])
-                return y_refs[0] + slope * (x - x_refs[0])
-            return y_refs[0]
-        if x >= x_refs[n - 1]:
-            return y_refs[n - 1]
-        for i in range(n - 1):
-            if x_refs[i] <= x < x_refs[i + 1]:
-                alpha = (x - x_refs[i]) / (x_refs[i + 1] - x_refs[i])
-                return y_refs[i] + alpha * (y_refs[i + 1] - y_refs[i])
-        return y_refs[n - 1]
-
-    # Interpolate parameters (linear params don't extrapolate low, quadratic do)
-    m1 = interp_param(v, V_REFS, M1_REFS, extrap_low=False)
-    c1 = interp_param(v, V_REFS, C1_REFS, extrap_low=False)
-    w_break = interp_param(v, V_REFS, W_BREAK_REFS, extrap_low=False)
-
-    a = interp_param(v, V_REFS, A_REFS, extrap_low=True)
-    b = interp_param(v, V_REFS, B_REFS, extrap_low=True)
-    c = interp_param(v, V_REFS, C_REFS, extrap_low=True)
-
-    # Ensure 'a' is negative (concave down)
-    a = min(a, -1e-10)
-    # Ensure w_break is positive
-    w_break = max(w_break, 0.0)
-
-    # Evaluate
-    if w <= w_break:
-        cm = m1 * w + c1
-    else:
-        cm = a * w * w + b * w + c
-
-    return max(cm, 0.0)
 
 
 # ─── Acceleration functions ───────────────────────────────────────────────────

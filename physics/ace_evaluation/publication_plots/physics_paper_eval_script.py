@@ -40,6 +40,8 @@ plt.rcParams.update(
         "legend.fontsize": 7,
         "axes.titlesize": "large",  # Will be larger than the base font
         "figure.titlesize": "x-large",  # Will be even larger
+        'pdf.fonttype': 42,  # Embed as TrueType instead of Type 3 (required for IEEE PDF compliance)
+        'ps.fonttype': 42,
     }
 )
 
@@ -1036,8 +1038,8 @@ def main():
     else:
         # Single field mapping
         # fm = NAKASHIMA
-        # fm = ONNX_ALEX_FM # proposed model
-        fm = ONNX_0426_FM
+        fm = ONNX_ALEX_FM # proposed model
+        # fm = ONNX_0426_FM
         
         ## fm = ONNX_RCM_FM
         ## fm = RCM_POLYFIT_FM

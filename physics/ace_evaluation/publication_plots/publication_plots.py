@@ -24,6 +24,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # ── Project imports ──────────────────────────────────────────────────────────
+import sys
+_PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
 from ace_evaluation.utilities.data_classes import MatchCollection
 from data_plotter.data_processor import DataProcessor, build_flight_segment_cache
 from data_plotter.plot_widgets.aero_estimates import (
@@ -60,8 +64,7 @@ MODEL_COLORS = {
     "Nakashima et al. (refined)": "rgba(0, 178, 114, 0.8)",
     #"ONNX alex (refined)": "rgba(0, 158, 115, 0.8)",
     "Proposed": "rgba(200, 50, 200, 0.8)",
-    #"Dürr et al.": "rgba(255, 127, 14, 0.8)",
-    "Prior work": "rgba(255, 127, 14, 0.8)",
+    "Dürr et al.": "rgba(255, 127, 14, 0.8)",
 }
 
 
@@ -530,7 +533,7 @@ def plot_aero_boxplot(dp, mc):
     models = [
         #("Optimal", "opt"),
         ("Nakashima et al.", "nakashima"),
-        ("Prior work", "0426"),
+        ("Dürr et al.", "0426"),
         ("Proposed", "0226"),
     ]
 
@@ -581,7 +584,7 @@ def plot_aero_boxplot(dp, mc):
         cur = clipped["Proposed"]
         cur_med = np.median(cur)
         cur_p75 = np.percentile(cur, 75)
-        for baseline in ["Nakashima et al.", "Prior work"]:
+        for baseline in ["Nakashima et al.", "Dürr et al."]:
             if baseline not in clipped:
                 continue
             bl = clipped[baseline]
@@ -664,7 +667,7 @@ def plot_table_contact_boxplot(dp, mc):
     models = [
         #("NakashimaITTF", "ittf"),
         ("Nakashima et al.", "paper"),
-        ("Prior work", "0426"),
+        ("Dürr et al.", "0426"),
         ("Proposed", "res0805"),
     ]
 
@@ -759,7 +762,7 @@ def plot_table_contact_boxplot(dp, mc):
         cur = comp_errors["Proposed"]
         cur_stats = (np.percentile(cur, 25), np.median(cur), np.percentile(cur, 75))
         print(f"    {comp} — Proposed: 25th={cur_stats[0]:.4f}, median={cur_stats[1]:.4f}, 75th={cur_stats[2]:.4f}")
-        for baseline in ["Nakashima et al.", "Prior work"]:
+        for baseline in ["Nakashima et al.", "Dürr et al."]:
             if baseline not in comp_errors:
                 continue
             bl = comp_errors[baseline]
@@ -797,7 +800,7 @@ def export_rcm_csv(dp, mc, output_path: pathlib.Path):
     models = [
         ("Nakashima et al.", "default"),
         ("Nakashima et al. (refined)", "nakashima_refined"),
-        ("Prior work", "onnx_0426"),
+        ("Dürr et al.", "onnx_0426"),
         ("Proposed", "onnx_alex_refined"),
     ]
     vel_comps = ["vx", "vy", "vz"]
@@ -857,7 +860,7 @@ def plot_rcm_boxplot(dp, mc):
     models = [
         ("Nakashima et al.", "default"),
         ("Nakashima et al. (refined)", "nakashima_refined"),
-        ("Prior work", "onnx_0426"),
+        ("Dürr et al.", "onnx_0426"),
         ("Proposed", "onnx_alex_refined"),
     ]
 
@@ -940,7 +943,7 @@ def plot_rcm_boxplot(dp, mc):
             cur = model_abs_err["Proposed"]
             cur_stats = (np.percentile(cur, 25), np.median(cur), np.percentile(cur, 75))
             print(f"      Proposed: 25th={cur_stats[0]:.4f}, median={cur_stats[1]:.4f}, 75th={cur_stats[2]:.4f}")
-            for baseline in ["Nakashima et al.", "Nakashima et al. (refined)", "Prior work"]:
+            for baseline in ["Nakashima et al.", "Nakashima et al. (refined)", "Dürr et al."]:
                 if baseline not in model_abs_err:
                     continue
                 bl = model_abs_err[baseline]
