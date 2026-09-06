@@ -27,7 +27,8 @@ from utils import (
 
 logger = logging.getLogger(__name__)
 
-torch.set_float32_matmul_precision("medium")
+# Switched to "high" to preserve deterministic accuracy in Physics-informed matrices
+torch.set_float32_matmul_precision("high") 
 
 
 class CustomLoss(nn.Module):
@@ -38,16 +39,13 @@ class CustomLoss(nn.Module):
     def __init__(self, cfg: DictConfig):
         super().__init__()
 
-    def forward(
-        self, output: torch.Tensor, target: torch.Tensor, scale=1.0
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, output: torch.Tensor, target: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Computes the custom loss value given the model output and target values.
         """
         mse_loss = F.mse_loss(output, target)
         rmse_loss = torch.sqrt(mse_loss)
         mae_loss = F.l1_loss(output, target)
-
         return rmse_loss, mae_loss
 
 
@@ -59,9 +57,7 @@ class NegLogLikelihoodLoss(nn.Module):
     def __init__(self, cfg: DictConfig):
         super().__init__()
 
-    def forward(
-        self, y_pred: torch.Tensor, log_sigma: torch.Tensor, target: torch.Tensor, scale=1.0, lambda_reg=1
-    ) -> Tuple[torch.Tensor]:
+    def forward(self, y_pred: torch.Tensor, log_sigma: torch.Tensor, target: torch.Tensor, scale=1.0, lambda_reg=1.0) -> torch.Tensor:
         """
         find the best mean and std to maximize the likelihood
         """
@@ -125,14 +121,13 @@ class Regressor(L.LightningModule):
 
         ### Physics Informed Model smoothness
         self.physics = get_params()
-        self.gradient_matrix: torch.Tensor = torch.Tensor(get_nakashima_matrix(self.physics))  # .to(device=self.device)
-
+        self.gradient_matrix: torch.Tensor = torch.Tensor(get_nakashima_matrix(self.physics))
         # Scaler previously fitted
         self.scaler_input: Scaler = scaler_input
 
         self.scaler_output: Scaler = scaler_output
 
-        self.cluster_centers: torch.Tensor = torch.Tensor(cluster_centers)  # .to(device=self.device)
+        self.cluster_centers: torch.Tensor = torch.Tensor(cluster_centers)
 
         self.nakashima_type = cfg.nakashima_type
 
@@ -295,9 +290,7 @@ class Regressor(L.LightningModule):
 
     def configure_optimizers(self):
         """Configure Optimizer"""
-        optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=5e-4)
-
-        return optimizer
+        return optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=5e-4)
 
     def _step(self, train_batch, batch_idx, stage):
         x, y = train_batch
@@ -311,7 +304,7 @@ class Regressor(L.LightningModule):
         spin_label = y[:, 3:]
 
         rmse_loss_vel, mae_loss_vel = self.criterion(output=y_hat1, target=vel_label)
-        rmse_loss_spin, mae_loss_spin = self.criterion(output=y_hat2, target=spin_label, scale=0.01)
+        rmse_loss_spin, mae_loss_spin = self.criterion(output=y_hat2, target=spin_label)
 
         ### NLL
         loss_vel_nll_conf = self.conf_nll_criterion(
@@ -371,7 +364,7 @@ class Regressor(L.LightningModule):
             ]
         else:
             output_names = ["Velocity_Output", "Spin_Output", "Log_Std", "Std"]
-
+        
         torch.onnx.export(
             self,  # The model
             dummy_input,  # The dummy input
@@ -381,11 +374,9 @@ class Regressor(L.LightningModule):
             input_names=["Ball_Pre_State"],  # Names of the model's input variables
             output_names=output_names,  # Names of the model's output variables
         )
-
         print(f"Model exported to {onnx_file_path}")
-
         ## test if onnx is valid
-        rcm_regressor = onnxruntime.InferenceSession(onnx_file_path, providers=["CPUExecutionProvider"])
+        onnxruntime.InferenceSession(onnx_file_path, providers=["CPUExecutionProvider"])
 
 
 @hydra.main(version_base="1.1", config_path="../", config_name="proposed_model_config")  # hydra.job.chdir=True
@@ -397,6 +388,8 @@ def main(cfg: DictConfig):
     check_params(cfg)
 
     data_module = ArrayDataModule(cfg.neural_network)
+    # Explicitly call setup to ensure that the dataset is preprocessed before training
+    data_module.setup() 
 
     # ------- Initialize the neural network model -------
     nn_model = Regressor(

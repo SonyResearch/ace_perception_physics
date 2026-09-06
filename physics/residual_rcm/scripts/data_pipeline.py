@@ -16,7 +16,6 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import MinMaxScaler, QuantileTransformer, RobustScaler, StandardScaler
 from torch.utils.data import DataLoader, TensorDataset, random_split
 
-matplotlib.use("TkAgg")
 
 from utils import get_params, get_nakashima_matrix
 
@@ -58,7 +57,7 @@ class Scaler(Enum):
         return scaler_instance
 
     @staticmethod
-    def inverse_transform_torch(scaler, tensor: torch.Tensor) -> torch.tensor:
+    def inverse_transform_torch(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Assign the appropriate inverse transform method based on the scaler type."""
         if isinstance(scaler, MinMaxScaler):
             return Scaler._inverse_transform_min_max(scaler, tensor)
@@ -87,76 +86,42 @@ class Scaler(Enum):
     def _transform_min_max(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Apply MinMax scaling"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            scale_ = torch.as_tensor(scaler.scale_, dtype=dtype).cpu()
-            min_ = torch.as_tensor(scaler.min_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            scale_ = torch.as_tensor(scaler.scale_, dtype=dtype).cuda()
-            min_ = torch.as_tensor(scaler.min_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        scale_ = torch.as_tensor(scaler.scale_, dtype=dtype, device=device)
+        min_ = torch.as_tensor(scaler.min_, dtype=dtype, device=device)
         if scale_ is None or min_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'transform'.")
-
-        tensor = tensor * scale_ + min_
-        return tensor
+        return tensor * scale_ + min_
 
     @staticmethod
     def _transform_standard(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Apply Standard scaling"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            mean_ = torch.as_tensor(scaler.mean_, dtype=dtype).cpu()
-            var_ = torch.as_tensor(scaler.var_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            mean_ = torch.as_tensor(scaler.mean_, dtype=dtype).cuda()
-            var_ = torch.as_tensor(scaler.var_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        mean_ = torch.as_tensor(scaler.mean_, dtype=dtype, device=device)
+        var_ = torch.as_tensor(scaler.var_, dtype=dtype, device=device)
         if mean_ is None or var_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'transform'.")
-
-        tensor = (tensor - mean_) / var_
-        return tensor
+        return (tensor - mean_) / var_
 
     @staticmethod
     def _transform_robust(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Apply Robust scaling"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            center_ = torch.as_tensor(scaler.center_, dtype=dtype).cpu()
-            scale_ = torch.as_tensor(scaler.scale_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            center_ = torch.as_tensor(scaler.center_, dtype=dtype).cuda()
-            scale_ = torch.as_tensor(scaler.scale_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        center_ = torch.as_tensor(scaler.center_, dtype=dtype, device=device)
+        scale_ = torch.as_tensor(scaler.scale_, dtype=dtype, device=device)
         if center_ is None or scale_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'transform'.")
-
-        tensor = (tensor - center_) / scale_
-        return tensor
+        return (tensor - center_) / scale_
 
     @staticmethod
     def _transform_quantile(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Apply QuantileTransformer scaling (ONNX-compatible)"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype).cpu()
-            references = torch.as_tensor(scaler.references_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype).cuda()
-            references = torch.as_tensor(scaler.references_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError("Unsupported tensor device")
-
+        device = tensor.device
+        quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype, device=device)
+        references = torch.as_tensor(scaler.references_, dtype=dtype, device=device)
         if not hasattr(scaler, "quantiles_"):
             raise RuntimeError("Scaler has not been fitted yet.")
 
@@ -180,79 +145,48 @@ class Scaler(Enum):
             weights = (x - x0) / torch.clamp(x1 - x0, min=1e-8)
             result[:, feature_idx] = y0 + weights * (y1 - y0)
 
-        result = torch.clamp(result, 0.0, 1.0)
-        return result
+        return torch.clamp(result, 0.0, 1.0)
 
     @staticmethod
     def _inverse_transform_min_max(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Undo MinMax scaling"""
-        if tensor.is_cpu:
-            scale_ = torch.tensor(scaler.scale_).cpu()
-            min_ = torch.tensor(scaler.min_).cpu()
-        elif tensor.is_cuda:
-            scale_ = torch.tensor(scaler.scale_).cuda()
-            min_ = torch.tensor(scaler.min_).cuda()
-        else:
-            raise RuntimeError
+        device = tensor.device
+        scale_ = torch.tensor(scaler.scale_, device=device)
+        min_ = torch.tensor(scaler.min_, device=device)
         if scale_ is None or min_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'inverse_transform'.")
-
-        tensor = tensor - min_
-        tensor = tensor / scale_
-        return tensor
+        return (tensor - min_) / scale_
 
     @staticmethod
     def _inverse_transform_standard(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Undo Standard scaling"""
-        if tensor.is_cpu:
-            mean_ = torch.tensor(scaler.mean_).cpu()
-            var_ = torch.tensor(scaler.var_).cpu()
-        elif tensor.is_cuda:
-            mean_ = torch.tensor(scaler.mean_).cuda()
-            var_ = torch.tensor(scaler.var_).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        mean_ = torch.tensor(scaler.mean_, device=device)
+        var_ = torch.tensor(scaler.var_, device=device)
         if mean_ is None or var_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'inverse_transform'.")
-
-        tensor = tensor * var_ + mean_
-        return tensor
+        return tensor * var_ + mean_
 
     @staticmethod
     def _inverse_transform_robust(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Undo Robust scaling"""
-        if tensor.is_cpu:
-            center_ = torch.tensor(scaler.center_).cpu()
-            scale_ = torch.tensor(scaler.scale_).cpu()
-        elif tensor.is_cuda:
-            center_ = torch.tensor(scaler.center_).cuda()
-            scale_ = torch.tensor(scaler.scale_).cuda()
-        else:
-            raise RuntimeError
-
+        device = tensor.device
+        center_ = torch.tensor(scaler.center_, device=device)
+        scale_ = torch.tensor(scaler.scale_, device=device)
         if center_ is None or scale_ is None:
             raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'inverse_transform'.")
-
-        tensor = tensor * scale_ + center_
-        return tensor
+        return tensor * scale_ + center_
 
     @staticmethod
     def _inverse_transform_quantile(scaler, tensor: torch.Tensor) -> torch.Tensor:
         """Undo QuantileTransformer scaling (ONNX-compatible)"""
         dtype = tensor.dtype
-
-        if tensor.is_cpu:
-            quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype).cpu()
-            references = torch.as_tensor(scaler.references_, dtype=dtype).cpu()
-        elif tensor.is_cuda:
-            quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype).cuda()
-            references = torch.as_tensor(scaler.references_, dtype=dtype).cuda()
-        else:
-            raise RuntimeError("Unsupported tensor device")
+        device = tensor.device
+        quantiles = torch.as_tensor(scaler.quantiles_, dtype=dtype, device=device)
+        references = torch.as_tensor(scaler.references_, dtype=dtype, device=device)
 
         if not hasattr(scaler, "quantiles_"):
-            raise RuntimeError("Scaler has not been fitted yet.")
+            raise RuntimeError("Scaler has not been fitted yet. Call 'fit' before 'inverse_transform'.")
 
         tensor_clipped = torch.clamp(tensor, 0.0, 1.0)
         n_features = quantiles.shape[1]
@@ -290,6 +224,7 @@ class ArrayDataModule(LightningDataModule):
 
     def __init__(self, cfg: DictConfig, seed_splitting: int = 42):
         super().__init__()
+        self.cfg = cfg
         self.dataset_path: Path = Path(cfg.dataset_path)
         self.batch_size: int = cfg.batch_size
         self.residual_model_bool: bool = cfg.residual_model_bool
@@ -308,12 +243,11 @@ class ArrayDataModule(LightningDataModule):
         self.scaler_input: Scaler = Scaler.get_scaler(Scaler(scaler_type))
         self.scaler_output: Scaler = Scaler.get_scaler(Scaler(scaler_type))
 
-
         # Only for residual model
         self.physics = get_params()
         self.nakashima_matrix = get_nakashima_matrix(self.physics)
 
-        # Setup method will fill these
+        # Initialize placeholders to be filled later
         self.input_dataset: np.ndarray
         self.output_dataset: np.ndarray
         self.info_dataset: np.ndarray
@@ -326,26 +260,21 @@ class ArrayDataModule(LightningDataModule):
 
         self.cluster_centers = np.array([])
 
-        self.inplace_rotation = None
-
-        # def setup(self, stage=None):  # pylint: disable=unused-argument
+    def setup(self, stage=None):
         """Pre-processing of the dataset"""
-        self.input_dataset, self.output_dataset, self.info_dataset = self._get_dataset_from_csv()
-
-        print("self.residual_model_bool", self.residual_model_bool)
-
-        # Apply Scaler
-        self.scaler_input.fit(self.input_dataset)
-        self.scaler_output.fit(self.output_dataset)
+        super().setup(stage)
+        self.input_dataset, self.output_dataset, self.info_dataset = self._get_dataset_from_csv(plot_histograms=self.cfg.plot_histograms)
 
         data_tensor = torch.tensor(self.input_dataset, dtype=torch.float32)
         labels_tensor = torch.tensor(self.output_dataset, dtype=torch.float32)
 
         full_dataset = TensorDataset(data_tensor, labels_tensor)
 
-        self.train_size = int(self.train_perc * len(self.input_dataset))
-        self.val_size = int(self.test_perc * len(self.input_dataset))
-        self.test_size = len(self.input_dataset) - self.train_size - self.val_size
+        total_samples = len(self.input_dataset)
+        self.train_size = int(self.train_perc * total_samples)
+        
+        self.val_size = int(self.val_perc * total_samples) 
+        self.test_size = total_samples - self.train_size - self.val_size
 
         self.train_dataset, self.val_dataset, self.test_dataset = random_split(
             full_dataset,
@@ -353,20 +282,26 @@ class ArrayDataModule(LightningDataModule):
             generator=torch.Generator().manual_seed(self.seed_splitting),
         )
 
-        print("train: ", len(self.train_dataset), "vel: ", len(self.val_dataset), "test: ", len(self.test_dataset))
+        print(f"train: {len(self.train_dataset)}, val: {len(self.val_dataset)}, test: {len(self.test_dataset)}")
 
-        self.cluster_centers = self.fit_cluster()
+        # Fit Scalers & Clusters ONLY on Training Data
+        train_indices = self.train_dataset.indices
+        train_input_data = self.input_dataset[train_indices]
+        train_output_data = self.output_dataset[train_indices]
 
-    def fit_cluster(self):
+        self.scaler_input.fit(train_input_data)
+        self.scaler_output.fit(train_output_data)
 
-        model_input_data = self.input_dataset  # all data
+        self.cluster_centers = self.fit_cluster(train_input_data)
 
-        X = self.scaler_input.transform(model_input_data)[:, :6]
+    def fit_cluster(self, train_data: np.ndarray):
+        """Fit KMeans clustering on the training data to find cluster centers."""
+        X = self.scaler_input.transform(train_data)[:, :6]
         kmeans = KMeans(n_clusters=1000, random_state=0, n_init="auto").fit(X)
 
         return kmeans.cluster_centers_
 
-    def _get_dataset_from_csv(self, start_date="2025-11-01", end_date="2027-01-01") -> Tuple[np.ndarray, np.ndarray]:
+    def _get_dataset_from_csv(self, start_date="2025-11-01", end_date="2027-01-01", plot_histograms=False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Load the dataset from a CSV file.
         Error handling for FileNotFound and for Missing coloumn.
@@ -480,7 +415,9 @@ class ArrayDataModule(LightningDataModule):
         ]
 
         xyz_dict = {"x": 0, "y": 1, "z": 2, "w": 3}
-        input_data = None
+        
+        input_data_list = []
+        
         for input_type in self.input_types:
             if input_type in self.input_config:
                 dim_info = self.input_config[input_type]
@@ -512,11 +449,10 @@ class ArrayDataModule(LightningDataModule):
                 cur_input = data[dist_cols_global].to_numpy()
             elif input_type.startswith("gwrx"):
                 cur_input = np.cross(data[racket_spin_cols_global].to_numpy(), data[dist_cols_global].to_numpy())
-                print(f"Shape of gwrx: {np.shape(cur_input)}")
             elif input_type.startswith("rq"):
                 cur_input = data[orientation_cols].to_numpy()
             else:
-                raise NotImplementedError("unknown input type: %s" % input_type)
+                raise NotImplementedError(f"unknown input type: {input_type}")
 
             if "_" in input_type:
                 idx = xyz_dict[input_type.split("_")[1]]
@@ -526,10 +462,10 @@ class ArrayDataModule(LightningDataModule):
             else:
                 assert input_dim == cur_input.shape[1]
 
-            if input_data is None:
-                input_data = cur_input
-            else:
-                input_data = np.concatenate((input_data, cur_input), axis=1)
+            input_data_list.append(cur_input)
+
+        # Concatenate all at once
+        input_data = np.concatenate(input_data_list, axis=1)
 
         expected_output = data[required_columns_output].to_numpy()
         data_info = data[required_columns_info].to_numpy()
@@ -537,36 +473,39 @@ class ArrayDataModule(LightningDataModule):
         ######### DONE #########
         print("\n data pipeline - input_data: ", input_data.shape)
 
-        # Plot histograms of the input and output data to check the distribution.
-        # Input data typically has dimension 8: bv:3, bs:3, dist:2
-        # Output data typically has dimension 6: After_Vel: 3, After_Spin: 3
-        input_shape = np.shape(input_data)[1]
-        output_shape = np.shape(expected_output)[1]
-        num_cols = max(input_shape, output_shape)
-        fig, axs = plt.subplots(2, num_cols, sharex=False, sharey=True, constrained_layout=True)
-        NBINS = 20
+        if plot_histograms:
+            matplotlib.use("TkAgg")
 
-        # Inputs
-        for idx in range(input_shape):
-            ax = axs[0][idx]
-            ax.hist(input_data[:, idx], bins=NBINS)
-            ax.set_title(f"Input {idx}")
-            ax.set_xlabel("Value")
-            ax.set_ylabel("Frequency (Counts)")
-            ax.minorticks_on()
-            ax.grid("on", "both")
+            # Plot histograms of the input and output data to check the distribution.
+            # Input data typically has dimension 8: bv:3, bs:3, dist:2
+            # Output data typically has dimension 6: After_Vel: 3, After_Spin: 3
+            input_shape = np.shape(input_data)[1]
+            output_shape = np.shape(expected_output)[1]
+            num_cols = max(input_shape, output_shape)
+            fig, axs = plt.subplots(2, num_cols, sharex=False, sharey=True, constrained_layout=True)
+            NBINS = 20
 
-        # Outputs
-        for idx in range(output_shape):
-            ax = axs[1][idx]
-            ax.hist(expected_output[:, idx], bins=NBINS)
-            ax.set_title(f"Output {idx}")
-            ax.set_xlabel("Value")
-            ax.set_ylabel("Frequency (Counts)")
-            ax.minorticks_on()
-            ax.grid("on", "both")
+            # Inputs
+            for idx in range(input_shape):
+                ax = axs[0][idx]
+                ax.hist(input_data[:, idx], bins=NBINS)
+                ax.set_title(f"Input {idx}")
+                ax.set_xlabel("Value")
+                ax.set_ylabel("Frequency (Counts)")
+                ax.minorticks_on()
+                ax.grid("on", "both")
 
-        plt.show()
+            # Outputs
+            for idx in range(output_shape):
+                ax = axs[1][idx]
+                ax.hist(expected_output[:, idx], bins=NBINS)
+                ax.set_title(f"Output {idx}")
+                ax.set_xlabel("Value")
+                ax.set_ylabel("Frequency (Counts)")
+                ax.minorticks_on()
+                ax.grid("on", "both")
+
+            plt.show()
 
         return input_data, expected_output, data_info
 

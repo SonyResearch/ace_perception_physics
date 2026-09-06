@@ -118,6 +118,7 @@ neural_network:
   residual_model_bool: True # False
 
   nakashima_type: tangential_COR # tangential_COR, default
+  plot_histograms: False
 
 # Path management is handled above
   dataset_path: ${general.dataset_path}
