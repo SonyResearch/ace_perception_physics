@@ -1,5 +1,0 @@
-char[20] camera_name
-uint16 img_type
----
-bool is_valid
-ImageData img

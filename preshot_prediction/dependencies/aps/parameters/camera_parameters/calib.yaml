@@ -1,5 +1,0 @@
-# calibration settings
-acquisition_control:
-  exposure_time: 1000
-analog_control:
-  gain: 13

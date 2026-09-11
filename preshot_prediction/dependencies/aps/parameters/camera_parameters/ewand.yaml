@@ -1,6 +1,0 @@
-
-# EWand settings overrides
-acquisition_control:
-  exposure_time: 300
-analog_control:
-  gain: 10.0

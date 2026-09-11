@@ -1,8 +1,0 @@
-defaults:
-  - "default.yaml"
-
-
-color_filter:
-  blur_kernel_size: 9
-  hsv_lower_boundary: [9, 150, 90]
-  hsv_upper_boundary: [22, 220, 255]

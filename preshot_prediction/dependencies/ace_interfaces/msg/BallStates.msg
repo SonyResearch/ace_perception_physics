@@ -1,3 +1,0 @@
-
-PerceptionHeader header
-BallState[] states

@@ -1,2 +1,0 @@
-PerceptionHeader header
-string path

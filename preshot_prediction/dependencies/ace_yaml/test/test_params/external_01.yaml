@@ -1,6 +1,0 @@
-__search_paths__:
-  - "${package:physics_layer}/parameters"
-
-defaults:
-  - _self_
-  - physics_default.yaml

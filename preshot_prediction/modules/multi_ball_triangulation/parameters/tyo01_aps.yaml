@@ -1,6 +1,0 @@
-defaults:
-  - "tyo01.yaml"
-
-use_variable_response_time: false
-voi_filter:
-  enable: true

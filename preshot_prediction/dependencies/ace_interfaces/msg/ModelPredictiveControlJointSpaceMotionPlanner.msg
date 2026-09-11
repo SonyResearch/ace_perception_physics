@@ -1,8 +1,0 @@
-std_msgs/Header header
-
-ace_interfaces/JointFullState current_joint_state
-ace_interfaces/JointFullState target_joint_state
-
-std_msgs/Float64 target_time
-std_msgs/Float64 current_time
-std_msgs/Float64 inference_time

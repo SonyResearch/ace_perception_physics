@@ -1,5 +1,0 @@
-defaults:
-  - "tyo01.yaml"
-
-voi_filter:
-  enable: false

@@ -1,7 +1,0 @@
-
-defaults:
- - "default.yaml"
-serial_numbers:
-  - 23175981 # mirror camera
-  - 23175179 # mounted camera
-rt_profile: aps_player
